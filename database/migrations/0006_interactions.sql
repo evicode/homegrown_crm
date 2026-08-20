@@ -1,0 +1,30 @@
+CREATE TABLE interactions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    prospect_id BIGINT UNSIGNED NOT NULL,
+    contact_id BIGINT UNSIGNED NULL,
+    type VARCHAR(32) NOT NULL,
+    direction VARCHAR(32) NOT NULL,
+    occurred_at DATETIME(6) NOT NULL,
+    summary TEXT NOT NULL,
+    outcome VARCHAR(64) NOT NULL,
+    qualifies_as_contact TINYINT(1) NOT NULL,
+    qualifies_as_response TINYINT(1) NOT NULL,
+    supersedes_interaction_id BIGINT UNSIGNED NULL,
+    voided_at DATETIME(6) NULL,
+    voided_reason TEXT NULL,
+    voided_by_user_id BIGINT UNSIGNED NULL,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id), INDEX idx_interactions_timeline (prospect_id,voided_at,occurred_at,id),
+    CONSTRAINT fk_interaction_prospect FOREIGN KEY(prospect_id) REFERENCES prospects(id),
+    CONSTRAINT fk_interaction_contact FOREIGN KEY(contact_id) REFERENCES contacts(id),
+    CONSTRAINT fk_interaction_actor FOREIGN KEY(actor_user_id) REFERENCES users(id),
+    CONSTRAINT fk_interaction_void_actor FOREIGN KEY(voided_by_user_id) REFERENCES users(id),
+    CONSTRAINT fk_interaction_supersedes FOREIGN KEY(supersedes_interaction_id) REFERENCES interactions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE prospect_status_events ADD COLUMN source_interaction_id BIGINT UNSIGNED NULL,
+    ADD INDEX idx_status_source_interaction(source_interaction_id),
+    ADD CONSTRAINT fk_status_source_interaction FOREIGN KEY(source_interaction_id) REFERENCES interactions(id);

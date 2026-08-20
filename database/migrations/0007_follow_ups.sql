@@ -1,0 +1,21 @@
+CREATE TABLE follow_ups (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    prospect_id BIGINT UNSIGNED NOT NULL,
+    opportunity_id BIGINT UNSIGNED NULL,
+    action TEXT NOT NULL,
+    due_at DATETIME(6) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'open',
+    completed_at DATETIME(6) NULL,
+    cancelled_at DATETIME(6) NULL,
+    cancellation_reason TEXT NULL,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    open_slot TINYINT GENERATED ALWAYS AS (CASE WHEN status = 'open' THEN 1 ELSE NULL END) STORED,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY(id), UNIQUE KEY uq_follow_up_open(prospect_id,open_slot),
+    INDEX idx_follow_up_due(status,due_at,id),
+    CONSTRAINT fk_follow_up_prospect FOREIGN KEY(prospect_id) REFERENCES prospects(id),
+    CONSTRAINT fk_follow_up_actor FOREIGN KEY(actor_user_id) REFERENCES users(id),
+    CONSTRAINT chk_follow_up_status CHECK(status IN ('open','completed','cancelled'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

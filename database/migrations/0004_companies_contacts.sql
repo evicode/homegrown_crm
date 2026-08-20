@@ -1,0 +1,41 @@
+CREATE TABLE companies (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(160) NOT NULL,
+    normalized_name VARCHAR(160) NOT NULL,
+    website VARCHAR(2048) NULL,
+    website_domain VARCHAR(255) NULL,
+    location VARCHAR(160) NULL,
+    industry VARCHAR(160) NULL,
+    employee_range VARCHAR(80) NULL,
+    revenue_range VARCHAR(80) NULL,
+    notes TEXT NULL,
+    archived_at DATETIME(6) NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    INDEX idx_companies_active_name (archived_at, normalized_name),
+    INDEX idx_companies_domain (website_domain)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE contacts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_id BIGINT UNSIGNED NULL,
+    first_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NULL,
+    normalized_name VARCHAR(205) NOT NULL,
+    role VARCHAR(160) NULL,
+    email VARCHAR(254) NULL,
+    email_normalized VARCHAR(254) NULL,
+    phone VARCHAR(50) NULL,
+    linkedin_url VARCHAR(2048) NULL,
+    archived_at DATETIME(6) NULL,
+    version INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    INDEX idx_contacts_company_active (company_id, archived_at),
+    INDEX idx_contacts_email (email_normalized),
+    INDEX idx_contacts_active_name (archived_at, normalized_name),
+    CONSTRAINT fk_contacts_company FOREIGN KEY (company_id) REFERENCES companies (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

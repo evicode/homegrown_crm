@@ -1,0 +1,19 @@
+{
+  "name": "dreamsmithlabs/contract-campaign",
+  "description": "Dreamsmith Labs contract campaign CRM",
+  "type": "project",
+  "require": {
+    "php": "^8.2",
+    "ext-json": "*",
+    "ext-pdo": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Dreamsmith\\Campaign\\": "src/"
+    }
+  },
+  "scripts": {
+    "test": "php tests/run.php",
+    "lint": "php bin/lint.php"
+  }
+}

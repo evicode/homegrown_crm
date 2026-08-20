@@ -1,0 +1,14 @@
+/.env
+/.env.*
+!/.env.example
+!/.env.sample
+# Local credentials and private keys must never enter version control.
+*.pem
+*.key
+*.p12
+*.pfx
+/vendor/
+/var/log/*.log
+/var/tmp/*
+!/var/log/.gitkeep
+!/var/tmp/.gitkeep
