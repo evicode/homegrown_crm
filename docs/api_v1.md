@@ -11,6 +11,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 
 The available capabilities reflect the scopes selected when the token was created. The public contract index is at `/api/openapi.json`.
 
+For company and contact updates, first read the resource and send its returned `ETag` in `If-Match`; a stale ETag is rejected with `412`, and a missing ETag with `428`. Archive and restore are explicit `POST` commands (`{id}:archive` / `{id}:restore`) and use the same headers.
+
 ## Prospect workflow
 
 Create a prospect, retaining the returned `version`:

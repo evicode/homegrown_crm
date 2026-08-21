@@ -104,7 +104,7 @@ final class ApiController
 
     public function company(Request $request, int $id): Response
     {
-        return $this->read($request, 'company.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->company($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Company not found.'); return ['company' => $this->companyData($value)]; });
+        return $this->read($request, 'company.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->company($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Company not found.'); return ['company' => $this->companyData($value), '_etag' => $this->etag('company', $id, (int) $value['version'])]; });
     }
 
     public function createCompany(Request $request): Response
@@ -113,6 +113,24 @@ final class ApiController
             $this->strict($body, ['name', 'website', 'location', 'industry', 'employee_range', 'revenue_range', 'notes', 'confirm_duplicate']); [$input, $errors] = CompanyInput::fromArray($body); if ($input === null) return $this->validation($errors);
             $id = $this->records->createCompany($input, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId);
             return ['status' => 201, 'location' => '/api/v1/companies/' . $id, 'company' => $this->companyData((new RecordRepository($this->database->pdo()))->company($id))];
+        });
+    }
+
+    public function updateCompany(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'company.update', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['name', 'website', 'location', 'industry', 'employee_range', 'revenue_range', 'notes', 'confirm_duplicate']); [$input, $errors] = CompanyInput::fromArray($body); if ($input === null) return $this->validation($errors);
+            $this->records->updateCompany($id, $input, $this->ifMatch($request, 'company', $id), !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId);
+            $company = (new RecordRepository($this->database->pdo()))->company($id); return ['company' => $this->companyData($company), '_etag' => $this->etag('company', $id, (int) $company['version'])];
+        });
+    }
+
+    public function archiveCompany(Request $request, int $id, bool $restore = false): Response
+    {
+        return $this->mutate($request, $restore ? 'company.restore' : 'company.archive', function ($actor, array $body) use ($request, $id, $restore): array {
+            $this->strict($body, $restore ? ['confirm_duplicate'] : ['confirm_contacts']); $version = $this->ifMatch($request, 'company', $id);
+            if ($restore) $this->records->restoreCompany($id, $version, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId); else $this->records->archiveCompany($id, $version, !empty($body['confirm_contacts']), (int) $actor->ownerUserId, $actor->correlationId);
+            $company = (new RecordRepository($this->database->pdo()))->company($id); return ['company' => $this->companyData($company), '_etag' => $this->etag('company', $id, (int) $company['version'])];
         });
     }
 
@@ -127,7 +145,7 @@ final class ApiController
 
     public function contact(Request $request, int $id): Response
     {
-        return $this->read($request, 'contact.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->contact($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Contact not found.'); return ['contact' => $this->contactData($value)]; });
+        return $this->read($request, 'contact.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->contact($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Contact not found.'); return ['contact' => $this->contactData($value), '_etag' => $this->etag('contact', $id, (int) $value['version'])]; });
     }
 
     public function createContact(Request $request): Response
@@ -136,6 +154,24 @@ final class ApiController
             $this->strict($body, ['company_id', 'first_name', 'last_name', 'role', 'email', 'phone', 'linkedin_url', 'confirm_duplicate']); [$input, $errors] = ContactInput::fromArray($body); if ($input === null) return $this->validation($errors);
             $id = $this->records->createContact($input, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId);
             return ['status' => 201, 'location' => '/api/v1/contacts/' . $id, 'contact' => $this->contactData((new RecordRepository($this->database->pdo()))->contact($id))];
+        });
+    }
+
+    public function updateContact(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'contact.update', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['company_id', 'first_name', 'last_name', 'role', 'email', 'phone', 'linkedin_url', 'confirm_duplicate', 'confirm_archived_reassociation']); [$input, $errors] = ContactInput::fromArray($body); if ($input === null) return $this->validation($errors);
+            $this->records->updateContact($id, $input, $this->ifMatch($request, 'contact', $id), !empty($body['confirm_duplicate']), !empty($body['confirm_archived_reassociation']), (int) $actor->ownerUserId, $actor->correlationId);
+            $contact = (new RecordRepository($this->database->pdo()))->contact($id); return ['contact' => $this->contactData($contact), '_etag' => $this->etag('contact', $id, (int) $contact['version'])];
+        });
+    }
+
+    public function archiveContact(Request $request, int $id, bool $restore = false): Response
+    {
+        return $this->mutate($request, $restore ? 'contact.restore' : 'contact.archive', function ($actor, array $body) use ($request, $id, $restore): array {
+            $this->strict($body, $restore ? ['confirm_duplicate'] : []); $version = $this->ifMatch($request, 'contact', $id);
+            if ($restore) $this->records->restoreContact($id, $version, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId); else $this->records->archiveContact($id, $version, (int) $actor->ownerUserId, $actor->correlationId);
+            $contact = (new RecordRepository($this->database->pdo()))->contact($id); return ['contact' => $this->contactData($contact), '_etag' => $this->etag('contact', $id, (int) $contact['version'])];
         });
     }
 
@@ -223,12 +259,13 @@ final class ApiController
             $result = $operation($actor);
             if (isset($result['status']) && $result['status'] === 422) return Response::json($result, 422, $this->headers());
             $status = (int) ($result['status'] ?? 200); unset($result['status']);
-            $headers = $this->headers(); if (isset($result['location'])) { $headers['Location'] = (string) $result['location']; unset($result['location']); }
+            $headers = $this->headers(); if (isset($result['location'])) { $headers['Location'] = (string) $result['location']; unset($result['location']); } if (isset($result['_etag'])) { $headers['ETag'] = (string) $result['_etag']; unset($result['_etag']); }
             if ($claim !== null) (new Idempotency())->complete($this->database->pdo(), $claim['record_id'], (string) $status, $result, $this->clock->now());
             $this->event($request, $actor->integrationClientId, $capability, (string) $status);
             return Response::json($result, $status, $headers);
         } catch (\OutOfBoundsException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 404, 'not_found', $error->getMessage());
         } catch (StaleRecordVersion $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 412, 'stale_version', $error->getMessage());
+        } catch (\LogicException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 428, 'precondition_required', $error->getMessage());
         } catch (\InvalidArgumentException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 422, 'validation_failed', $error->getMessage());
         } catch (\DomainException $error) {
             $status = $actor === null ? 401 : (str_contains($error->getMessage(), 'scope') ? 403 : 409);
@@ -246,6 +283,8 @@ final class ApiController
     private function active(): array { $repository = new CampaignRepository($this->database->pdo()); $settings = $repository->settings(); $campaign = $settings['active_campaign_id'] === null ? null : $repository->find((int) $settings['active_campaign_id']); if ($campaign === null) throw new \OutOfBoundsException('No active campaign is configured.'); return $campaign; }
     private function strict(array $body, array $allowed): void { foreach (array_keys($body) as $key) if (!in_array($key, $allowed, true)) throw new \InvalidArgumentException('Unknown field: ' . $key . '.'); }
     private function version(mixed $value, string $field): int { $version = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]); if ($version === false) throw new \InvalidArgumentException($field . ' must be a positive integer.'); return $version; }
+    private function etag(string $type, int $id, int $version): string { return '"' . $type . '-' . $id . '-' . $version . '"'; }
+    private function ifMatch(Request $request, string $type, int $id): int { $header = (string) ($request->headers['if-match'] ?? ''); if (preg_match('/^"' . preg_quote($type, '/') . '-' . $id . '-([1-9][0-9]*)"$/', $header, $matches) !== 1) throw new \LogicException('A current If-Match ETag is required.'); return (int) $matches[1]; }
     private function text(mixed $value): string { return is_string($value) ? trim($value) : ''; }
     private function validation(array $errors): array { return ['status' => 422, 'code' => 'validation_failed', 'errors' => $errors]; }
     private function headers(): array { return ['Cache-Control' => 'private, no-store', 'X-API-Version' => '1']; }

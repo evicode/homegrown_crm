@@ -138,9 +138,15 @@ final class Bootstrap
         $router->add('GET', '/api/v1/companies', static fn (Request $request): Response => $apiController->companies($request), 'api.companies.index');
         $router->add('POST', '/api/v1/companies', static fn (Request $request): Response => $apiController->createCompany($request), 'api.companies.create');
         $router->add('GET', '/api/v1/companies/{id}', static fn (Request $request, array $parameters): Response => $apiController->company($request, (int) $parameters['id']), 'api.companies.show');
+        $router->add('PATCH', '/api/v1/companies/{id}', static fn (Request $request, array $parameters): Response => $apiController->updateCompany($request, (int) $parameters['id']), 'api.companies.update');
+        $router->add('POST', '/api/v1/companies/{id}:archive', static fn (Request $request, array $parameters): Response => $apiController->archiveCompany($request, (int) $parameters['id']), 'api.companies.archive');
+        $router->add('POST', '/api/v1/companies/{id}:restore', static fn (Request $request, array $parameters): Response => $apiController->archiveCompany($request, (int) $parameters['id'], true), 'api.companies.restore');
         $router->add('GET', '/api/v1/contacts', static fn (Request $request): Response => $apiController->contacts($request), 'api.contacts.index');
         $router->add('POST', '/api/v1/contacts', static fn (Request $request): Response => $apiController->createContact($request), 'api.contacts.create');
         $router->add('GET', '/api/v1/contacts/{id}', static fn (Request $request, array $parameters): Response => $apiController->contact($request, (int) $parameters['id']), 'api.contacts.show');
+        $router->add('PATCH', '/api/v1/contacts/{id}', static fn (Request $request, array $parameters): Response => $apiController->updateContact($request, (int) $parameters['id']), 'api.contacts.update');
+        $router->add('POST', '/api/v1/contacts/{id}:archive', static fn (Request $request, array $parameters): Response => $apiController->archiveContact($request, (int) $parameters['id']), 'api.contacts.archive');
+        $router->add('POST', '/api/v1/contacts/{id}:restore', static fn (Request $request, array $parameters): Response => $apiController->archiveContact($request, (int) $parameters['id'], true), 'api.contacts.restore');
         $router->add('GET', '/api/v1/prospects', static fn (Request $request): Response => $apiController->prospects($request), 'api.prospects.index');
         $router->add('POST', '/api/v1/prospects', static fn (Request $request): Response => $apiController->createProspect($request), 'api.prospects.create');
         $router->add('GET', '/api/v1/prospects/{id}', static fn (Request $request, array $parameters): Response => $apiController->prospect($request, (int) $parameters['id']), 'api.prospects.show');
