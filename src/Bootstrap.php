@@ -7,6 +7,7 @@ namespace Dreamsmith\Campaign;
 use DateTimeZone;
 use Dreamsmith\Campaign\Application\Audit\AuditWriter;
 use Dreamsmith\Campaign\Authentication\AuthController;
+use Dreamsmith\Campaign\Api\ApiController;
 use Dreamsmith\Campaign\Authentication\AuthenticationService;
 use Dreamsmith\Campaign\Campaign\CampaignController;
 use Dreamsmith\Campaign\Campaign\CampaignService;
@@ -19,6 +20,9 @@ use Dreamsmith\Campaign\Interaction\InteractionController;
 use Dreamsmith\Campaign\Interaction\InteractionService;
 use Dreamsmith\Campaign\Integration\IntegrationController;
 use Dreamsmith\Campaign\Integration\IntegrationService;
+use Dreamsmith\Campaign\Integration\BearerTokenGuard;
+use Dreamsmith\Campaign\Integration\CapabilityCatalog;
+use Dreamsmith\Campaign\Integration\LocalTokenAuthenticator;
 use Dreamsmith\Campaign\Opportunity\OpportunityController;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
 use Dreamsmith\Campaign\FollowUp\FollowUpController;
@@ -116,6 +120,26 @@ final class Bootstrap
         $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
         $integrations = require $root . '/config/integrations.php';
         $integrationController = new IntegrationController($auth, $database, new IntegrationService($database, new AuditWriter(), new SystemClock(), $integrations), $integrations, $shell, $flash, $csrf, $router);
+        $apiController = new ApiController(
+            $database,
+            new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)),
+            new CapabilityCatalog((array) $integrations['capabilities']),
+            new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules),
+            new InteractionService($database, new AuditWriter(), new SystemClock()),
+            new FollowUpService($database, new AuditWriter(), new SystemClock()),
+            new OpportunityService($database, new AuditWriter(), new SystemClock(), $sales),
+            $sales, $integrations, new SystemClock(),
+        );
+
+        $router->add('GET', '/api/openapi.json', static fn (Request $request): Response => $apiController->openApi($request), 'api.openapi');
+        $router->add('GET', '/api/v1/capabilities', static fn (Request $request): Response => $apiController->capabilities($request), 'api.capabilities');
+        $router->add('GET', '/api/v1/campaigns/active', static fn (Request $request): Response => $apiController->activeCampaign($request), 'api.campaign.active');
+        $router->add('GET', '/api/v1/prospects', static fn (Request $request): Response => $apiController->prospects($request), 'api.prospects.index');
+        $router->add('POST', '/api/v1/prospects', static fn (Request $request): Response => $apiController->createProspect($request), 'api.prospects.create');
+        $router->add('GET', '/api/v1/prospects/{id}', static fn (Request $request, array $parameters): Response => $apiController->prospect($request, (int) $parameters['id']), 'api.prospects.show');
+        $router->add('POST', '/api/v1/prospects/{id}/interactions', static fn (Request $request, array $parameters): Response => $apiController->recordInteraction($request, (int) $parameters['id']), 'api.interactions.create');
+        $router->add('POST', '/api/v1/prospects/{id}/follow-ups', static fn (Request $request, array $parameters): Response => $apiController->scheduleFollowUp($request, (int) $parameters['id']), 'api.followups.create');
+        $router->add('POST', '/api/v1/prospects/{id}/opportunities', static fn (Request $request, array $parameters): Response => $apiController->createOpportunity($request, (int) $parameters['id']), 'api.opportunities.create');
 
         $router->add('GET', '/health/live', static fn (Request $request, array $parameters): Response => Response::json([
             'status' => 'ok',

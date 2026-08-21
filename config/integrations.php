@@ -22,6 +22,7 @@ return [
         'reports:read' => 'Read campaign reports', 'data:import' => 'Commit imports', 'data:export' => 'Export data',
     ],
     'capabilities' => [
+        'capability.discover' => ['scopes' => [], 'mutation' => false, 'rate' => 'read'],
         'campaign.get_active' => ['scopes' => ['campaign:read'], 'mutation' => false, 'rate' => 'read'],
         'report.get_campaign' => ['scopes' => ['reports:read'], 'mutation' => false, 'rate' => 'read'],
         'company.search' => ['scopes' => ['companies:read'], 'mutation' => false, 'rate' => 'read'],
