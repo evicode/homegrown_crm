@@ -14,6 +14,10 @@ Define the transport-neutral capability, identity, authorization, concurrency, i
 - Owner Integrations screen and external onboarding documentation.
 - No OAuth authorization-server implementation.
 
+## Provisional local tokens
+
+Before an OAuth provider is selected, the owner may create account-owned local integration tokens. They are high-entropy bearer credentials, stored only as SHA-256 hashes, shown once at issuance, scoped, expiring, and individually revocable. They remain disabled unless both deployment policy and the eventual external adapter explicitly enable them. They are an implementation bridge for trusted first-party development, not an OAuth replacement or the default production interoperability contract.
+
 ## Required deployment decisions
 
 Before F14 acceptance, deployment configuration must name:

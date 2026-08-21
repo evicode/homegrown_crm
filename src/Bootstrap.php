@@ -10,11 +10,15 @@ use Dreamsmith\Campaign\Authentication\AuthController;
 use Dreamsmith\Campaign\Authentication\AuthenticationService;
 use Dreamsmith\Campaign\Campaign\CampaignController;
 use Dreamsmith\Campaign\Campaign\CampaignService;
+use Dreamsmith\Campaign\Data\DataController;
+use Dreamsmith\Campaign\Data\DataService;
 use Dreamsmith\Campaign\Http\Request;
 use Dreamsmith\Campaign\Http\Response;
 use Dreamsmith\Campaign\Http\Router;
 use Dreamsmith\Campaign\Interaction\InteractionController;
 use Dreamsmith\Campaign\Interaction\InteractionService;
+use Dreamsmith\Campaign\Integration\IntegrationController;
+use Dreamsmith\Campaign\Integration\IntegrationService;
 use Dreamsmith\Campaign\Opportunity\OpportunityController;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
 use Dreamsmith\Campaign\FollowUp\FollowUpController;
@@ -29,6 +33,7 @@ use Dreamsmith\Campaign\Prospect\ProspectRules;
 use Dreamsmith\Campaign\Prospect\ProspectService;
 use Dreamsmith\Campaign\Records\RecordController;
 use Dreamsmith\Campaign\Records\RecordService;
+use Dreamsmith\Campaign\Reporting\ReportingController;
 use Dreamsmith\Campaign\Security\Csrf;
 use Dreamsmith\Campaign\Security\SessionManager;
 use Dreamsmith\Campaign\Support\Logger;
@@ -107,6 +112,10 @@ final class Bootstrap
         $interactionController = new InteractionController($auth,$database,new InteractionService($database,new AuditWriter(),new SystemClock()),$sales,$csrf,$flash,$router,new SystemClock());
         $followUpController = new FollowUpController($auth,$database,new FollowUpService($database,new AuditWriter(),new SystemClock()),$shell,$flash,$csrf,$router,new SystemClock());
         $opportunityController = new OpportunityController($auth,$database,new OpportunityService($database,new AuditWriter(),new SystemClock(),$sales),$sales,$shell,$flash,$csrf,$router);
+        $reportingController = new ReportingController($auth, $database, $shell, $router);
+        $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
+        $integrations = require $root . '/config/integrations.php';
+        $integrationController = new IntegrationController($auth, $database, new IntegrationService($database, new AuditWriter(), new SystemClock(), $integrations), $integrations, $shell, $flash, $csrf, $router);
 
         $router->add('GET', '/health/live', static fn (Request $request, array $parameters): Response => Response::json([
             'status' => 'ok',
@@ -132,12 +141,23 @@ final class Bootstrap
         $router->add('POST', '/login', static fn (Request $request): Response => $controller->login($request), 'login.submit');
         $router->add('POST', '/logout', static fn (Request $request): Response => $controller->logout($request), 'logout');
         $router->add('GET', '/', static fn (Request $request): Response => $controller->dashboard($request), 'dashboard');
+        $router->add('GET', '/reports/campaign', static fn (Request $request): Response => $reportingController->campaign($request), 'reports.campaign');
         $router->add('GET', '/account/password', static fn (Request $request): Response => $controller->passwordForm($request), 'account.password');
         $router->add('POST', '/account/password', static fn (Request $request): Response => $controller->changePassword($request), 'account.password.update');
         $router->add('GET', '/opportunities', static fn (Request $request): Response => $opportunityController->index($request), 'opportunities.index');
         $router->add('GET', '/work', static fn (): Response => $followUpController->work(), 'work.index');
-        $router->add('GET', '/data', static fn (): Response => $shellController->placeholder('data.index', 'Data tools', 'CSV import and export tools will live here.'), 'data.index');
-        $router->add('GET', '/integrations', static fn (): Response => $shellController->placeholder('integrations.index', 'Integrations', 'External API and MCP client access will be managed here.'), 'integrations.index');
+        $router->add('GET', '/data', static fn (): Response => Response::redirect($router->url('data.import')), 'data.index');
+        $router->add('GET', '/data/import', static fn (): Response => $dataController->importForm(), 'data.import');
+        $router->add('GET', '/data/import/template', static fn (): Response => $dataController->template(), 'data.import.template');
+        $router->add('POST', '/data/import/preview', static fn (Request $request): Response => $dataController->preview($request), 'data.import.preview');
+        $router->add('POST', '/data/import/commit', static fn (Request $request): Response => $dataController->commit($request), 'data.import.commit');
+        $router->add('POST', '/data/import/cancel', static fn (Request $request): Response => $dataController->cancel($request), 'data.import.cancel');
+        $router->add('GET', '/data/export', static fn (): Response => $dataController->exportForm(), 'data.export');
+        $router->add('POST', '/data/export/{type}', static fn (Request $request, array $parameters): Response => $dataController->export($request, $parameters['type']), 'data.export.download');
+        $router->add('GET', '/integrations', static fn (): Response => $integrationController->index(), 'integrations.index');
+        $router->add('GET', '/integrations/new', static fn (): Response => $integrationController->form(), 'integrations.new');
+        $router->add('POST', '/integrations', static fn (Request $request): Response => $integrationController->create($request), 'integrations.create');
+        $router->add('POST', '/integrations/{id}/revoke', static fn (Request $request, array $parameters): Response => $integrationController->revoke($request, (int) $parameters['id']), 'integrations.revoke');
         $router->add('GET', '/campaigns', static fn (): Response => $campaignController->index(), 'campaigns.index');
         $router->add('GET', '/campaigns/new', static fn (): Response => $campaignController->createForm(), 'campaigns.new');
         $router->add('POST', '/campaigns', static fn (Request $request): Response => $campaignController->create($request), 'campaigns.create');
@@ -186,7 +206,17 @@ final class Bootstrap
         $router->add('POST', '/opportunities/{id}/transition', static fn (Request $request,array $p): Response => $opportunityController->transition($request,(int)$p['id']), 'opportunities.transition');
         $router->add('POST', '/opportunities/{id}/stage-events/{eventId}/void', static fn (Request $request,array $p): Response => $opportunityController->voidEvent($request,(int)$p['id'],(int)$p['eventId']), 'opportunities.events.void');
 
-        return new Application($router, $logger, (bool) $app['debug'], $view);
+        $headers = [
+            'Content-Security-Policy' => "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'",
+            'Referrer-Policy' => 'no-referrer',
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'Permissions-Policy' => 'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+        ];
+        if (str_starts_with((string) $app['canonical_origin'], 'https://')) {
+            $headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+        }
+        return new Application($router, $logger, (bool) $app['debug'], $view, $headers);
     }
 
     /** @param array<string, mixed> $app */
@@ -203,6 +233,9 @@ final class Bootstrap
         if (($app['environment'] ?? '') === 'production' && ($app['auth_fingerprint_key'] ?? '') === 'local-development-only-key') {
             throw new \RuntimeException('AUTH_FINGERPRINT_KEY must be configured in production.');
         }
+        if (($app['environment'] ?? '') === 'production' && ($app['import_signing_key'] ?? '') === 'local-import-development-only-key') {
+            throw new \RuntimeException('IMPORT_SIGNING_KEY must be configured in production.');
+        }
         if (($app['environment'] ?? '') === 'production'
             && !str_starts_with($origin, 'https://')
             && !preg_match('#^http://(localhost|127\.0\.0\.1)(?::\d+)?$#', $origin)) {
@@ -210,6 +243,9 @@ final class Bootstrap
         }
         if (strlen((string) ($app['auth_fingerprint_key'] ?? '')) < 24) {
             throw new \RuntimeException('AUTH_FINGERPRINT_KEY must contain at least 24 characters.');
+        }
+        if (strlen((string) ($app['import_signing_key'] ?? '')) < 24) {
+            throw new \RuntimeException('IMPORT_SIGNING_KEY must contain at least 24 characters.');
         }
         if (preg_match('/^[A-Za-z0-9_-]{1,64}$/', (string) ($app['session']['name'] ?? '')) !== 1) {
             throw new \RuntimeException('SESSION_NAME is invalid.');
@@ -221,6 +257,9 @@ final class Bootstrap
         if ((int) ($app['session']['idle_seconds'] ?? 0) < 60
             || (int) ($app['session']['absolute_seconds'] ?? 0) < (int) ($app['session']['idle_seconds'] ?? 0)) {
             throw new \RuntimeException('Session lifetimes are invalid.');
+        }
+        if ((int) ($app['runtime_retention_hours'] ?? 0) < 24) {
+            throw new \RuntimeException('RUNTIME_RETENTION_HOURS must be at least 24.');
         }
     }
 }

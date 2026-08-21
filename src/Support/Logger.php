@@ -18,15 +18,19 @@ final class Logger
         $safe = [];
         foreach ($context as $key => $value) {
             if ($value instanceof Throwable) {
-                $safe[$key] = ['type' => $value::class, 'message' => $value->getMessage()];
-            } elseif (!preg_match('/password|token|secret|authorization|cookie/i', $key)) {
-                $safe[$key] = $value;
+                $safe[$key] = ['type' => $value::class];
+            } elseif (!preg_match('/password|token|secret|authorization|cookie|body|upload|summary|note|email|phone/i', $key)) {
+                $safe[$key] = is_scalar($value) || $value === null ? $value : '[redacted non-scalar context]';
             }
         }
         $directory = dirname($this->path);
         if (!is_dir($directory)) {
             mkdir($directory, 0770, true);
         }
-        error_log(json_encode(['time' => gmdate(DATE_ATOM), 'level' => 'error', 'message' => $message, 'context' => $safe], JSON_UNESCAPED_SLASHES) . PHP_EOL, 3, $this->path);
+        try {
+            error_log(json_encode(['time' => gmdate(DATE_ATOM), 'level' => 'error', 'message' => $message, 'context' => $safe], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL, 3, $this->path);
+        } catch (Throwable) {
+            error_log('Campaign application logging failure.' . PHP_EOL);
+        }
     }
 }

@@ -3,7 +3,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^(?:config|database|docs|src|templates|tests|var|vendor)(?:/|$) - [F,L,NC]
-    RewriteRule ^(?:composer\.(?:json|lock)|\.env)$ - [F,L,NC]
+    RewriteRule ^(?:composer\.(?:json|lock)|\.env(?:\..*)?|.*\.(?:pem|key|p12|pfx))$ - [F,L,NC]
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>

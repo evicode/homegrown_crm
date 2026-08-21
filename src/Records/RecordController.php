@@ -30,9 +30,15 @@ final class RecordController
     {
         $user = $this->user(); if ($user instanceof Response) return $user;
         $archived = ($request->query['archived'] ?? null) === '1';
+        $list = \Dreamsmith\Campaign\Reporting\ListQuery::from($request->query, ['name', 'updated', 'location', 'industry'], 'name');
+        $repository = new RecordRepository($this->database->pdo());
+        $count = $repository->companyCount($archived, $list->text);
         return $this->shell->owner('records/companies.php', [
-            'companies' => (new RecordRepository($this->database->pdo()))->companies($archived),
+            'companies' => $repository->companies($archived, $list->text, $list->sort, $list->direction, $list->size, $list->offset()),
             'archived' => $archived,
+            'filters' => ['q' => $list->text, 'sort' => $list->sort, 'direction' => $list->direction, 'archived' => $archived ? '1' : ''],
+            'count' => $count, 'page' => $list->page, 'pages' => max(1, (int) ceil($count / $list->size)),
+            'indexUrl' => $this->router->url('companies.index'),
             'newUrl' => $this->router->url('companies.new'),
             'activeUrl' => $this->router->url('companies.index'),
             'archivedUrl' => $this->router->url('companies.index') . '?archived=1',

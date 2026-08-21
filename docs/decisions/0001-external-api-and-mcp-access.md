@@ -62,7 +62,7 @@ Rejected as the default because transport, negotiation, authorization metadata, 
 
 ### Static owner-created bearer keys
 
-Rejected as the remote interoperability target because MCP authorization and independent third-party clients require stronger discovery, audience binding, expiry, and revocation behavior. Local static credentials may be considered separately for localhost development only and must never silently become the production contract.
+Rejected as the remote interoperability target because MCP authorization and independent third-party clients require stronger discovery and audience binding. As a provisional first-party bridge, the owner may issue account-owned local integration tokens that are stored only as hashes, scoped, expiring, revocable, disabled by default, and mapped to the same actor/scope model. They must never silently become the default production interoperability contract.
 
 ### Build an OAuth authorization server in this project
 

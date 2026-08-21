@@ -19,6 +19,11 @@ APP_TIMEZONE=America/Los_Angeles
 APP_LOG_LEVEL=info
 EXTERNAL_ACCESS_ENABLED=0
 AUTH_FINGERPRINT_KEY=replace-with-a-long-random-secret
+IMPORT_SIGNING_KEY=replace-with-a-separate-long-random-secret
+RUNTIME_RETENTION_HOURS=168
+LOCAL_INTEGRATION_TOKENS_ENABLED=1
+INTEGRATION_ENVIRONMENT=local
+LOCAL_INTEGRATION_TOKEN_TTL_DAYS=90
 DB_DSN=mysql:host=127.0.0.1;port=3306;dbname=dreamsmith_campaign;charset=utf8mb4
 DB_USER=application_user
 DB_PASSWORD=replace-me

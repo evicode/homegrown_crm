@@ -85,6 +85,7 @@ final class AuthController
             'report' => $report,
             'recentActivity' => $campaign === null ? [] : (new CampaignReportingService($this->database->pdo()))->recent((int) $campaign['id']),
             'workUrl' => $this->router->url('work.index'),
+            'reportUrl' => $this->router->url('reports.campaign'),
             'prospectUrl' => fn (int $id): string => $this->router->url('prospects.show', ['id' => $id]),
         ], $user, 'Dashboard', 'dashboard');
     }

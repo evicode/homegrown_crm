@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+ $environment = getenv('INTEGRATION_ENVIRONMENT') ?: (getenv('APP_ENV') ?: 'local');
+$tokenFlag = getenv('LOCAL_INTEGRATION_TOKENS_ENABLED');
+
+return [
+    'local_tokens_enabled' => $tokenFlag === false ? $environment !== 'production' : filter_var($tokenFlag, FILTER_VALIDATE_BOOL),
+    'environment' => $environment,
+    'token_ttl_days' => min(365, max(1, (int) (getenv('LOCAL_INTEGRATION_TOKEN_TTL_DAYS') ?: 90))),
+    'cursor_signing_key' => getenv('CURSOR_SIGNING_KEY') ?: 'local-cursor-development-only-key',
+    'idempotency_retention_hours' => min(168, max(1, (int) (getenv('IDEMPOTENCY_RETENTION_HOURS') ?: 24))),
+    'scopes' => [
+        'campaign:read' => 'Read active campaign context and reports',
+        'companies:read' => 'Read companies', 'companies:write' => 'Create and update companies',
+        'contacts:read' => 'Read contacts', 'contacts:write' => 'Create and update contacts',
+        'prospects:read' => 'Read prospects', 'prospects:write' => 'Create and update prospects',
+        'interactions:read' => 'Read interactions', 'interactions:write' => 'Record and correct interactions',
+        'follow_ups:read' => 'Read follow-ups', 'follow_ups:write' => 'Schedule and complete follow-ups',
+        'opportunities:read' => 'Read opportunities', 'opportunities:write' => 'Create and update opportunities',
+        'reports:read' => 'Read campaign reports', 'data:import' => 'Commit imports', 'data:export' => 'Export data',
+    ],
+    'capabilities' => [
+        'campaign.get_active' => ['scopes' => ['campaign:read'], 'mutation' => false, 'rate' => 'read'],
+        'report.get_campaign' => ['scopes' => ['reports:read'], 'mutation' => false, 'rate' => 'read'],
+        'company.search' => ['scopes' => ['companies:read'], 'mutation' => false, 'rate' => 'read'],
+        'company.create' => ['scopes' => ['companies:write'], 'mutation' => true, 'rate' => 'write'],
+        'prospect.search' => ['scopes' => ['prospects:read'], 'mutation' => false, 'rate' => 'read'],
+        'prospect.create' => ['scopes' => ['prospects:write'], 'mutation' => true, 'rate' => 'write'],
+        'interaction.record' => ['scopes' => ['interactions:write'], 'mutation' => true, 'rate' => 'write'],
+        'follow_up.schedule' => ['scopes' => ['follow_ups:write'], 'mutation' => true, 'rate' => 'write'],
+        'opportunity.create' => ['scopes' => ['opportunities:write'], 'mutation' => true, 'rate' => 'write'],
+        'data.export' => ['scopes' => ['data:export'], 'mutation' => false, 'rate' => 'export'],
+        'data.import_commit' => ['scopes' => ['data:import'], 'mutation' => true, 'rate' => 'high'],
+    ],
+];

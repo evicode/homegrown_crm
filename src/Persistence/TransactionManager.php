@@ -20,6 +20,19 @@ final class TransactionManager
             throw new \InvalidArgumentException('Retries require an explicitly retry-safe operation.');
         }
 
+        if ($this->pdo->inTransaction()) {
+            $savepoint = 'nested_' . bin2hex(random_bytes(8));
+            $this->pdo->exec('SAVEPOINT ' . $savepoint);
+            try {
+                $result = $operation($this->pdo);
+                $this->pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+                return $result;
+            } catch (Throwable $exception) {
+                $this->pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                throw $exception;
+            }
+        }
+
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             $this->pdo->beginTransaction();
             try {

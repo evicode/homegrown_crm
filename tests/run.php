@@ -28,6 +28,12 @@ use Dreamsmith\Campaign\Records\StaleRecordVersion;
 use Dreamsmith\Campaign\Prospect\ProspectInput;
 use Dreamsmith\Campaign\Prospect\ProspectRules;
 use Dreamsmith\Campaign\FollowUp\DueClassifier;
+use Dreamsmith\Campaign\Reporting\ListQuery;
+use Dreamsmith\Campaign\Integration\ScopeSet;
+use Dreamsmith\Campaign\Integration\CapabilityCatalog;
+use Dreamsmith\Campaign\Integration\CursorCodec;
+use Dreamsmith\Campaign\Integration\Idempotency;
+use Dreamsmith\Campaign\Application\Audit\ActorContext;
 use Dreamsmith\Campaign\Support\FrozenClock;
 use Dreamsmith\Campaign\Support\Logger;
 use Dreamsmith\Campaign\Support\View;
@@ -69,6 +75,24 @@ $test('application maps exceptions without exposing details', static function ()
     $assert($response->status === 500);
     $assert(!str_contains($response->body, 'sensitive detail'));
     $assert($response->headers['X-Request-ID'] === 'request-456');
+    @unlink($log);
+});
+
+$test('application applies operational security headers', static function () use ($assert): void {
+    $router = new Router();
+    $router->add('GET', '/health/live', static fn (): Response => Response::json(['status' => 'ok']), 'health.live');
+    $log = sys_get_temp_dir() . '/dreamsmith-header-' . bin2hex(random_bytes(6)) . '.log';
+    $response = (new Application($router, new Logger($log), false, null, ['X-Content-Type-Options' => 'nosniff', 'X-Frame-Options' => 'DENY']))->run(new Request('GET', '/health/live', requestId: 'request-headers'));
+    $assert($response->headers['X-Content-Type-Options'] === 'nosniff' && $response->headers['X-Frame-Options'] === 'DENY');
+    @unlink($log);
+});
+
+$test('logger redacts sensitive operational context', static function () use ($assert): void {
+    $log = sys_get_temp_dir() . '/dreamsmith-log-' . bin2hex(random_bytes(6)) . '.log';
+    (new Logger($log))->error('Test', ['password' => 'secret-value', 'body' => 'contact body', 'safe' => 'kept', 'exception' => new RuntimeException('sensitive exception')]);
+    $content = (string) file_get_contents($log);
+    $assert(!str_contains($content, 'secret-value') && !str_contains($content, 'contact body') && !str_contains($content, 'sensitive exception'));
+    $assert(str_contains($content, '"safe":"kept"') && str_contains($content, 'RuntimeException'));
     @unlink($log);
 });
 
@@ -213,6 +237,40 @@ $test('follow-up due classification uses owner-local calendar days', static func
     $assert($classifier->classify(new DateTimeImmutable('2026-08-19T06:00:00Z'), $now) === 'overdue');
     $assert($classifier->classify(new DateTimeImmutable('2026-08-20T03:00:00Z'), $now) === 'today');
     $assert($classifier->classify(new DateTimeImmutable('2026-08-20T08:00:00Z'), $now) === 'upcoming');
+});
+
+$test('list queries bound text, pagination, sorts, and directions', static function () use ($assert): void {
+    $query = ListQuery::from([
+        'q' => '  needle  ', 'page' => '-9', 'sort' => 'unsafe SQL', 'direction' => 'sideways',
+    ], ['name', 'updated'], 'name');
+    $assert($query->text === 'needle' && $query->page === 1);
+    $assert($query->sort === 'name' && $query->direction === 'desc');
+    $valid = ListQuery::from(['page' => '4', 'sort' => 'updated', 'direction' => 'asc'], ['name', 'updated'], 'name');
+    $assert($valid->offset() === 75 && $valid->sort === 'updated' && $valid->direction === 'asc');
+});
+
+$test('integration scopes are allowlisted and require every requested permission', static function () use ($assert): void {
+    $scopes = ScopeSet::validated(['prospects:read', 'unknown:write', 'prospects:read', 'reports:read'], ['prospects:read' => 'Read', 'reports:read' => 'Reports']);
+    $assert($scopes->all() === ['prospects:read', 'reports:read']);
+    $assert($scopes->allowsAll(['prospects:read']) && !$scopes->allowsAll(['prospects:write']));
+});
+
+$test('capability catalog filters discovery and rejects under-scoped calls', static function () use ($assert): void {
+    $catalog = new CapabilityCatalog(['prospect.search' => ['scopes' => ['prospects:read'], 'mutation' => false], 'prospect.create' => ['scopes' => ['prospects:write'], 'mutation' => true]]);
+    $actor = new ActorContext('integration', effectiveScopes: ['prospects:read']);
+    $assert($catalog->discover($actor) === ['prospect.search']);
+    $catalog->authorize($actor, 'prospect.search');
+    try { $catalog->authorize($actor, 'prospect.create'); throw new RuntimeException('Under-scoped capability was allowed.'); } catch (DomainException) {}
+    $assert($catalog->requiresIdempotency('prospect.create'));
+});
+
+$test('cursor and idempotency helpers reject tampering and unstable keys', static function () use ($assert): void {
+    $codec = new CursorCodec('test-signing-key');
+    $cursor = $codec->encode(['client' => 1, 'expires_at' => time() + 60]);
+    $assert($codec->decode($cursor)['client'] === 1);
+    try { $codec->decode($cursor . 'x'); throw new RuntimeException('Tampered cursor was accepted.'); } catch (DomainException) {}
+    $assert(Idempotency::validKey('0123456789abcdef') && !Idempotency::validKey('too short'));
+    $assert(Idempotency::fingerprint('prospect.create', ['a' => 1, 'b' => 2]) === Idempotency::fingerprint('prospect.create', ['b' => 2, 'a' => 1]));
 });
 
 $testDsn = getenv('TEST_DB_DSN');

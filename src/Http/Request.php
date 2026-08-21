@@ -6,7 +6,7 @@ namespace Dreamsmith\Campaign\Http;
 
 final class Request
 {
-    /** @param array<string, string> $headers @param array<string, mixed> $query @param array<string, mixed> $body */
+    /** @param array<string, string> $headers @param array<string, mixed> $query @param array<string, mixed> $body @param array<string,mixed> $files */
     public function __construct(
         public readonly string $method,
         public readonly string $path,
@@ -16,6 +16,7 @@ final class Request
         public readonly string $rawBody = '',
         public readonly string $requestId = '',
         public readonly string $clientIp = '',
+        public readonly array $files = [],
     ) {
     }
 
@@ -49,6 +50,7 @@ final class Request
             $rawBody,
             self::requestId($headers['x-request-id'] ?? null),
             is_string($_SERVER['REMOTE_ADDR'] ?? null) ? $_SERVER['REMOTE_ADDR'] : '',
+            $_FILES,
         );
     }
 

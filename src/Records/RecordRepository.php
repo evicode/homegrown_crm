@@ -13,16 +13,41 @@ final class RecordRepository
     }
 
     /** @return list<array<string,mixed>> */
-    public function companies(bool $archived = false): array
+    public function companies(bool $archived = false, string $text = '', string $sort = 'name', string $direction = 'asc', int $limit = 25, int $offset = 0): array
     {
+        $where = 'c.archived_at IS ' . ($archived ? 'NOT NULL' : 'NULL');
+        $params = [];
+        if ($text !== '') {
+            $where .= ' AND (c.name LIKE :q OR c.website LIKE :q OR c.location LIKE :q OR c.industry LIKE :q OR c.notes LIKE :q)';
+            $params['q'] = '%' . $text . '%';
+        }
+        $columns = ['name' => 'c.name', 'updated' => 'c.updated_at', 'location' => 'c.location', 'industry' => 'c.industry'];
+        $column = $columns[$sort] ?? $columns['name'];
+        $order = $direction === 'desc' ? 'DESC' : 'ASC';
         $statement = $this->pdo->prepare(
             'SELECT c.*, COUNT(ct.id) AS contact_count FROM companies c
              LEFT JOIN contacts ct ON ct.company_id = c.id AND ct.archived_at IS NULL
-             WHERE ' . ($archived ? 'c.archived_at IS NOT NULL' : 'c.archived_at IS NULL') . '
-             GROUP BY c.id ORDER BY c.name, c.id'
+             WHERE ' . $where . '
+             GROUP BY c.id ORDER BY ' . $column . ' ' . $order . ', c.id ' . $order . ' LIMIT :limit OFFSET :offset'
         );
+        foreach ($params as $key => $value) $statement->bindValue(':' . $key, $value);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
         $statement->execute();
         return $statement->fetchAll();
+    }
+
+    public function companyCount(bool $archived = false, string $text = ''): int
+    {
+        $where = 'archived_at IS ' . ($archived ? 'NOT NULL' : 'NULL');
+        $params = [];
+        if ($text !== '') {
+            $where .= ' AND (name LIKE :q OR website LIKE :q OR location LIKE :q OR industry LIKE :q OR notes LIKE :q)';
+            $params['q'] = '%' . $text . '%';
+        }
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM companies WHERE ' . $where);
+        $statement->execute($params);
+        return (int) $statement->fetchColumn();
     }
 
     /** @return list<array<string,mixed>> */
