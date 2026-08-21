@@ -62,6 +62,17 @@ final class RecordRepository
         return $this->pdo->query("SELECT ct.id,ct.company_id,ct.first_name,ct.last_name,c.name company_name FROM contacts ct LEFT JOIN companies c ON c.id=ct.company_id WHERE ct.archived_at IS NULL AND (ct.company_id IS NULL OR c.archived_at IS NULL) ORDER BY ct.last_name,ct.first_name,ct.id")->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
+    public function contacts(string $text = '', int $limit = 25, int $offset = 0): array
+    {
+        $where = 'ct.archived_at IS NULL'; $params = [];
+        if ($text !== '') { $where .= " AND (ct.first_name LIKE :q OR ct.last_name LIKE :q OR ct.email LIKE :q OR ct.role LIKE :q OR c.name LIKE :q)"; $params['q'] = '%' . $text . '%'; }
+        $statement = $this->pdo->prepare('SELECT ct.*,c.name company_name FROM contacts ct LEFT JOIN companies c ON c.id=ct.company_id WHERE ' . $where . ' ORDER BY ct.last_name,ct.first_name,ct.id LIMIT :limit OFFSET :offset');
+        foreach ($params as $key => $value) $statement->bindValue(':' . $key, $value);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT); $statement->bindValue(':offset', $offset, PDO::PARAM_INT); $statement->execute();
+        return $statement->fetchAll();
+    }
+
     /** @return array<string,mixed>|null */
     public function company(int $id, bool $lock = false): ?array
     {

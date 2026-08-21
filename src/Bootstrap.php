@@ -128,12 +128,19 @@ final class Bootstrap
             new InteractionService($database, new AuditWriter(), new SystemClock()),
             new FollowUpService($database, new AuditWriter(), new SystemClock()),
             new OpportunityService($database, new AuditWriter(), new SystemClock(), $sales),
+            new RecordService($database, new AuditWriter(), new SystemClock()),
             $sales, $integrations, new SystemClock(),
         );
 
         $router->add('GET', '/api/openapi.json', static fn (Request $request): Response => $apiController->openApi($request), 'api.openapi');
         $router->add('GET', '/api/v1/capabilities', static fn (Request $request): Response => $apiController->capabilities($request), 'api.capabilities');
         $router->add('GET', '/api/v1/campaigns/active', static fn (Request $request): Response => $apiController->activeCampaign($request), 'api.campaign.active');
+        $router->add('GET', '/api/v1/companies', static fn (Request $request): Response => $apiController->companies($request), 'api.companies.index');
+        $router->add('POST', '/api/v1/companies', static fn (Request $request): Response => $apiController->createCompany($request), 'api.companies.create');
+        $router->add('GET', '/api/v1/companies/{id}', static fn (Request $request, array $parameters): Response => $apiController->company($request, (int) $parameters['id']), 'api.companies.show');
+        $router->add('GET', '/api/v1/contacts', static fn (Request $request): Response => $apiController->contacts($request), 'api.contacts.index');
+        $router->add('POST', '/api/v1/contacts', static fn (Request $request): Response => $apiController->createContact($request), 'api.contacts.create');
+        $router->add('GET', '/api/v1/contacts/{id}', static fn (Request $request, array $parameters): Response => $apiController->contact($request, (int) $parameters['id']), 'api.contacts.show');
         $router->add('GET', '/api/v1/prospects', static fn (Request $request): Response => $apiController->prospects($request), 'api.prospects.index');
         $router->add('POST', '/api/v1/prospects', static fn (Request $request): Response => $apiController->createProspect($request), 'api.prospects.create');
         $router->add('GET', '/api/v1/prospects/{id}', static fn (Request $request, array $parameters): Response => $apiController->prospect($request, (int) $parameters['id']), 'api.prospects.show');

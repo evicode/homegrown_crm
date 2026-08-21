@@ -35,4 +35,4 @@ curl -X POST http://localhost/conversions/public/api/v1/prospects/PROSPECT_ID/in
 
 Use the same pattern for follow-ups (`POST /api/v1/prospects/{id}/follow-ups`) and opportunities (`POST /api/v1/prospects/{id}/opportunities`). Responses include an ID, version where applicable, and `Location`. API reads and mutations are private and never cached.
 
-The current first API slice covers campaign context, capability discovery, prospect search/read/create, interaction recording, follow-up scheduling, and opportunity creation. Browser cookies are not accepted by these routes.
+The current API slice covers campaign context, capability discovery, company and contact search/read/create, prospect search/read/create, interaction recording, follow-up scheduling, and opportunity creation. Browser cookies are not accepted by these routes.

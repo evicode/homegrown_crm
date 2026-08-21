@@ -22,6 +22,10 @@ use Dreamsmith\Campaign\Prospect\ProspectInput;
 use Dreamsmith\Campaign\Prospect\ProspectRepository;
 use Dreamsmith\Campaign\Prospect\ProspectService;
 use Dreamsmith\Campaign\Records\StaleRecordVersion;
+use Dreamsmith\Campaign\Records\CompanyInput;
+use Dreamsmith\Campaign\Records\ContactInput;
+use Dreamsmith\Campaign\Records\RecordRepository;
+use Dreamsmith\Campaign\Records\RecordService;
 use Dreamsmith\Campaign\FollowUp\FollowUpService;
 use Dreamsmith\Campaign\Support\Clock;
 
@@ -36,6 +40,7 @@ final class ApiController
         private readonly InteractionService $interactions,
         private readonly FollowUpService $followUps,
         private readonly OpportunityService $opportunities,
+        private readonly RecordService $records,
         private readonly array $sales,
         private readonly array $config,
         private readonly Clock $clock,
@@ -49,6 +54,8 @@ final class ApiController
             'paths' => [
                 '/api/v1/capabilities' => ['get' => ['operationId' => 'capability.discover']],
                 '/api/v1/campaigns/active' => ['get' => ['operationId' => 'campaign.get_active']],
+                '/api/v1/companies' => ['get' => ['operationId' => 'company.search'], 'post' => ['operationId' => 'company.create']],
+                '/api/v1/contacts' => ['get' => ['operationId' => 'contact.search'], 'post' => ['operationId' => 'contact.create']],
                 '/api/v1/prospects' => ['get' => ['operationId' => 'prospect.search'], 'post' => ['operationId' => 'prospect.create']],
                 '/api/v1/prospects/{id}/interactions' => ['post' => ['operationId' => 'interaction.record']],
                 '/api/v1/prospects/{id}/follow-ups' => ['post' => ['operationId' => 'follow_up.schedule']],
@@ -83,6 +90,52 @@ final class ApiController
             $repository = new ProspectRepository($this->database->pdo());
             $items = $repository->all((int) $campaign['id'], false, $this->text($request->query['q'] ?? ''), $this->text($request->query['segment'] ?? ''), $this->text($request->query['status'] ?? ''), 'updated', 'desc', $perPage, ($page - 1) * $perPage);
             return ['items' => array_map(fn (array $item): array => $this->prospectData($item), $items), 'page' => $page, 'per_page' => $perPage, 'next_page' => count($items) === $perPage ? $page + 1 : null];
+        });
+    }
+
+    public function companies(Request $request): Response
+    {
+        return $this->read($request, 'company.search', function () use ($request): array {
+            $perPage = max(1, min(100, (int) ($request->query['per_page'] ?? 25))); $page = max(1, (int) ($request->query['page'] ?? 1));
+            $items = (new RecordRepository($this->database->pdo()))->companies(false, $this->text($request->query['q'] ?? ''), 'name', 'asc', $perPage, ($page - 1) * $perPage);
+            return ['items' => array_map(fn (array $item): array => $this->companyData($item), $items), 'page' => $page, 'per_page' => $perPage, 'next_page' => count($items) === $perPage ? $page + 1 : null];
+        });
+    }
+
+    public function company(Request $request, int $id): Response
+    {
+        return $this->read($request, 'company.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->company($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Company not found.'); return ['company' => $this->companyData($value)]; });
+    }
+
+    public function createCompany(Request $request): Response
+    {
+        return $this->mutate($request, 'company.create', function ($actor, array $body): array {
+            $this->strict($body, ['name', 'website', 'location', 'industry', 'employee_range', 'revenue_range', 'notes', 'confirm_duplicate']); [$input, $errors] = CompanyInput::fromArray($body); if ($input === null) return $this->validation($errors);
+            $id = $this->records->createCompany($input, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId);
+            return ['status' => 201, 'location' => '/api/v1/companies/' . $id, 'company' => $this->companyData((new RecordRepository($this->database->pdo()))->company($id))];
+        });
+    }
+
+    public function contacts(Request $request): Response
+    {
+        return $this->read($request, 'contact.search', function () use ($request): array {
+            $perPage = max(1, min(100, (int) ($request->query['per_page'] ?? 25))); $page = max(1, (int) ($request->query['page'] ?? 1));
+            $items = (new RecordRepository($this->database->pdo()))->contacts($this->text($request->query['q'] ?? ''), $perPage, ($page - 1) * $perPage);
+            return ['items' => array_map(fn (array $item): array => $this->contactData($item), $items), 'page' => $page, 'per_page' => $perPage, 'next_page' => count($items) === $perPage ? $page + 1 : null];
+        });
+    }
+
+    public function contact(Request $request, int $id): Response
+    {
+        return $this->read($request, 'contact.search', function () use ($id): array { $value = (new RecordRepository($this->database->pdo()))->contact($id); if ($value === null || $value['archived_at'] !== null) throw new \OutOfBoundsException('Contact not found.'); return ['contact' => $this->contactData($value)]; });
+    }
+
+    public function createContact(Request $request): Response
+    {
+        return $this->mutate($request, 'contact.create', function ($actor, array $body): array {
+            $this->strict($body, ['company_id', 'first_name', 'last_name', 'role', 'email', 'phone', 'linkedin_url', 'confirm_duplicate']); [$input, $errors] = ContactInput::fromArray($body); if ($input === null) return $this->validation($errors);
+            $id = $this->records->createContact($input, !empty($body['confirm_duplicate']), (int) $actor->ownerUserId, $actor->correlationId);
+            return ['status' => 201, 'location' => '/api/v1/contacts/' . $id, 'contact' => $this->contactData((new RecordRepository($this->database->pdo()))->contact($id))];
         });
     }
 
@@ -198,5 +251,7 @@ final class ApiController
     private function headers(): array { return ['Cache-Control' => 'private, no-store', 'X-API-Version' => '1']; }
     private function problem(int $status, string $code, string $detail, array $headers = []): Response { return Response::json(['type' => 'https://dreamsmith.local/problems/' . $code, 'title' => str_replace('_', ' ', $code), 'status' => $status, 'code' => $code, 'detail' => $detail], $status, $headers + $this->headers()); }
     private function campaign(array $value): array { return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'name' => $value['name'], 'start_date' => $value['start_date'], 'end_date' => $value['end_date']]; }
+    private function companyData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Company not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'name' => $value['name'], 'website' => $value['website'], 'location' => $value['location'], 'industry' => $value['industry'], 'employee_range' => $value['employee_range'], 'revenue_range' => $value['revenue_range'], 'notes' => $value['notes']]; }
+    private function contactData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Contact not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'company_id' => $value['company_id'] === null ? null : (int) $value['company_id'], 'company_name' => $value['company_name'] ?? null, 'first_name' => $value['first_name'], 'last_name' => $value['last_name'], 'role' => $value['role'], 'email' => $value['email'], 'phone' => $value['phone'], 'linkedin_url' => $value['linkedin_url']]; }
     private function prospectData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Prospect not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'campaign_id' => (int) $value['campaign_id'], 'company_id' => $value['company_id'] === null ? null : (int) $value['company_id'], 'primary_contact_id' => $value['primary_contact_id'] === null ? null : (int) $value['primary_contact_id'], 'segment' => $value['segment'], 'status' => $value['status'], 'source' => $value['source'], 'why_them' => $value['why_them'], 'business_problem' => $value['business_problem'], 'qualification_notes' => $value['qualification_notes'], 'company_name' => $value['company_name'] ?? null, 'contact_name' => trim((string) (($value['first_name'] ?? '') . ' ' . ($value['last_name'] ?? ''))) ?: null]; }
 }
