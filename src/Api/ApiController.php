@@ -180,7 +180,7 @@ final class ApiController
         return $this->read($request, 'prospect.search', function () use ($id): array {
             $prospect = (new ProspectRepository($this->database->pdo()))->find($id);
             if ($prospect === null || $prospect['archived_at'] !== null) throw new \OutOfBoundsException('Prospect not found.');
-            return ['prospect' => $this->prospectData($prospect)];
+            return ['prospect' => $this->prospectData($prospect), '_etag' => $this->etag('prospect', $id, (int) $prospect['version'])];
         });
     }
 
@@ -193,6 +193,42 @@ final class ApiController
             if ($input === null) return $this->validation($errors);
             $id = $this->prospects->create($input, (int) $actor->ownerUserId, $actor->correlationId);
             return ['status' => 201, 'location' => '/api/v1/prospects/' . $id, 'prospect' => $this->prospectData((new ProspectRepository($this->database->pdo()))->find($id))];
+        });
+    }
+
+    public function updateProspect(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'prospect.update', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['company_id', 'primary_contact_id', 'segment', 'source', 'why_them', 'business_problem', 'qualification_notes', 'problem_understood', 'timing_understood', 'buyer_understood', 'budget_plausible']);
+            foreach (['problem_understood', 'timing_understood', 'buyer_understood', 'budget_plausible'] as $key) $body[$key] = !empty($body[$key]) ? '1' : '0'; [$input, $errors] = ProspectInput::fromArray($body, $this->sales); if ($input === null) return $this->validation($errors);
+            $this->prospects->update($id, $input, $this->ifMatch($request, 'prospect', $id), (int) $actor->ownerUserId, $actor->correlationId);
+            $prospect = (new ProspectRepository($this->database->pdo()))->find($id); return ['prospect' => $this->prospectData($prospect), '_etag' => $this->etag('prospect', $id, (int) $prospect['version'])];
+        });
+    }
+
+    public function transitionProspect(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'prospect.transition', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['to_status', 'reason']); $to = $this->text($body['to_status'] ?? ''); if (!isset($this->sales['statuses'][$to])) throw new \InvalidArgumentException('to_status is invalid.');
+            $this->prospects->transition($id, $to, $this->text($body['reason'] ?? ''), $this->ifMatch($request, 'prospect', $id), (int) $actor->ownerUserId, $actor->correlationId);
+            $prospect = (new ProspectRepository($this->database->pdo()))->find($id); return ['prospect' => $this->prospectData($prospect), '_etag' => $this->etag('prospect', $id, (int) $prospect['version'])];
+        });
+    }
+
+    public function addProspectSignal(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'prospect.signal_create', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['signal_id', 'evidence_note', 'observed_on']); $signal = $this->version($body['signal_id'] ?? null, 'signal_id');
+            $this->prospects->addSignal($id, $signal, $this->text($body['evidence_note'] ?? ''), isset($body['observed_on']) ? $this->text($body['observed_on']) : null, $this->ifMatch($request, 'prospect', $id), (int) $actor->ownerUserId, $actor->correlationId);
+            $repository = new ProspectRepository($this->database->pdo()); $prospect = $repository->find($id); return ['prospect' => $this->prospectData($prospect), 'signals' => $repository->signals($id), '_etag' => $this->etag('prospect', $id, (int) $prospect['version'])];
+        });
+    }
+
+    public function archiveProspect(Request $request, int $id, bool $restore = false): Response
+    {
+        return $this->mutate($request, $restore ? 'prospect.restore' : 'prospect.archive', function ($actor, array $body) use ($request, $id, $restore): array {
+            $this->strict($body, []); $this->prospects->archive($id, $this->ifMatch($request, 'prospect', $id), $restore, (int) $actor->ownerUserId, $actor->correlationId);
+            $prospect = (new ProspectRepository($this->database->pdo()))->find($id); return ['prospect' => $this->prospectData($prospect), '_etag' => $this->etag('prospect', $id, (int) $prospect['version'])];
         });
     }
 

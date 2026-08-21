@@ -150,6 +150,11 @@ final class Bootstrap
         $router->add('GET', '/api/v1/prospects', static fn (Request $request): Response => $apiController->prospects($request), 'api.prospects.index');
         $router->add('POST', '/api/v1/prospects', static fn (Request $request): Response => $apiController->createProspect($request), 'api.prospects.create');
         $router->add('GET', '/api/v1/prospects/{id}', static fn (Request $request, array $parameters): Response => $apiController->prospect($request, (int) $parameters['id']), 'api.prospects.show');
+        $router->add('PATCH', '/api/v1/prospects/{id}', static fn (Request $request, array $parameters): Response => $apiController->updateProspect($request, (int) $parameters['id']), 'api.prospects.update');
+        $router->add('POST', '/api/v1/prospects/{id}:transition', static fn (Request $request, array $parameters): Response => $apiController->transitionProspect($request, (int) $parameters['id']), 'api.prospects.transition');
+        $router->add('POST', '/api/v1/prospects/{id}/signals', static fn (Request $request, array $parameters): Response => $apiController->addProspectSignal($request, (int) $parameters['id']), 'api.prospects.signals.create');
+        $router->add('POST', '/api/v1/prospects/{id}:archive', static fn (Request $request, array $parameters): Response => $apiController->archiveProspect($request, (int) $parameters['id']), 'api.prospects.archive');
+        $router->add('POST', '/api/v1/prospects/{id}:restore', static fn (Request $request, array $parameters): Response => $apiController->archiveProspect($request, (int) $parameters['id'], true), 'api.prospects.restore');
         $router->add('POST', '/api/v1/prospects/{id}/interactions', static fn (Request $request, array $parameters): Response => $apiController->recordInteraction($request, (int) $parameters['id']), 'api.interactions.create');
         $router->add('POST', '/api/v1/prospects/{id}/follow-ups', static fn (Request $request, array $parameters): Response => $apiController->scheduleFollowUp($request, (int) $parameters['id']), 'api.followups.create');
         $router->add('POST', '/api/v1/prospects/{id}/opportunities', static fn (Request $request, array $parameters): Response => $apiController->createOpportunity($request, (int) $parameters['id']), 'api.opportunities.create');
