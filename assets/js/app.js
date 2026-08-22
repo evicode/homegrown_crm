@@ -25,3 +25,56 @@ document.querySelectorAll('[data-dialog]').forEach((dialog) => {
         if (opener instanceof HTMLElement) opener.focus();
     });
 });
+
+document.querySelectorAll('[data-dialog-open]').forEach((opener) => {
+    if (!(opener instanceof HTMLElement)) return;
+    const dialog = document.getElementById(opener.dataset.dialogOpen || '');
+    if (!(dialog instanceof HTMLDialogElement)) return;
+    opener.addEventListener('click', () => {
+        const companySelect = document.querySelector('#prospect-company');
+        const modalCompanySelect = dialog.querySelector('[data-copy-company]');
+        if (companySelect instanceof HTMLSelectElement && modalCompanySelect instanceof HTMLSelectElement) {
+            modalCompanySelect.value = companySelect.value;
+        }
+        dialog.showModal();
+    });
+});
+
+document.querySelectorAll('[data-dialog-close]').forEach((close) => {
+    if (!(close instanceof HTMLElement)) return;
+    close.addEventListener('click', () => close.closest('dialog')?.close());
+});
+
+document.querySelectorAll('[data-quick-create]').forEach((form) => {
+    if (!(form instanceof HTMLFormElement)) return;
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const error = form.querySelector('[data-quick-error]');
+        if (error instanceof HTMLElement) error.hidden = true;
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit instanceof HTMLButtonElement) submit.disabled = true;
+        try {
+            const response = await fetch(form.action, {method: 'POST', body: new FormData(form)});
+            const payload = await response.json();
+            if (!response.ok || !payload.record) throw new Error(payload.error || 'Could not save this record.');
+            const target = document.getElementById(form.dataset.targetSelect || '');
+            if (!(target instanceof HTMLSelectElement)) throw new Error('The new record was saved, but the form could not select it. Refresh the page to continue.');
+            const option = new Option(payload.record.label, String(payload.record.id), true, true);
+            target.add(option);
+            if (target.id === 'prospect-company') {
+                document.querySelectorAll('[data-copy-company]').forEach((select) => {
+                    if (select instanceof HTMLSelectElement) select.add(new Option(payload.record.label, String(payload.record.id)));
+                });
+            }
+            form.reset();
+            form.closest('dialog')?.close();
+        } catch (exception) {
+            if (error instanceof HTMLElement) {
+                error.textContent = exception instanceof Error ? exception.message : 'Could not save this record.';
+                error.hidden = false;
+            }
+        } finally {
+            if (submit instanceof HTMLButtonElement) submit.disabled = false;
+        }
+    });
+});

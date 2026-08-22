@@ -227,6 +227,7 @@ final class Bootstrap
         $router->add('GET', '/companies', static fn (Request $request): Response => $recordController->companies($request), 'companies.index');
         $router->add('GET', '/companies/new', static fn (): Response => $recordController->companyForm(), 'companies.new');
         $router->add('POST', '/companies', static fn (Request $request): Response => $recordController->saveCompany($request), 'companies.create');
+        $router->add('POST', '/records/quick-companies', static fn (Request $request): Response => $recordController->quickCreateCompany($request), 'records.quick-companies');
         $router->add('GET', '/companies/{id}', static fn (Request $request, array $parameters): Response => $recordController->company((int) $parameters['id']), 'companies.show');
         $router->add('GET', '/companies/{id}/edit', static fn (Request $request, array $parameters): Response => $recordController->companyForm((int) $parameters['id']), 'companies.edit');
         $router->add('POST', '/companies/{id}/update', static fn (Request $request, array $parameters): Response => $recordController->saveCompany($request, (int) $parameters['id']), 'companies.update');
@@ -234,6 +235,7 @@ final class Bootstrap
         $router->add('POST', '/companies/{id}/restore', static fn (Request $request, array $parameters): Response => $recordController->toggleCompany($request, (int) $parameters['id'], true), 'companies.restore');
         $router->add('GET', '/contacts/new', static fn (Request $request): Response => $recordController->contactForm(preselectedCompanyId: isset($request->query['company_id']) ? (int) $request->query['company_id'] : null), 'contacts.new');
         $router->add('POST', '/contacts', static fn (Request $request): Response => $recordController->saveContact($request), 'contacts.create');
+        $router->add('POST', '/records/quick-contacts', static fn (Request $request): Response => $recordController->quickCreateContact($request), 'records.quick-contacts');
         $router->add('GET', '/contacts/{id}/edit', static fn (Request $request, array $parameters): Response => $recordController->contactForm((int) $parameters['id']), 'contacts.edit');
         $router->add('POST', '/contacts/{id}/update', static fn (Request $request, array $parameters): Response => $recordController->saveContact($request, (int) $parameters['id']), 'contacts.update');
         $router->add('POST', '/contacts/{id}/archive', static fn (Request $request, array $parameters): Response => $recordController->toggleContact($request, (int) $parameters['id'], false), 'contacts.archive');

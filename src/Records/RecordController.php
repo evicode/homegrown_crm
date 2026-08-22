@@ -92,6 +92,22 @@ final class RecordController
         return Response::redirect($this->router->url('companies.show',['id'=>$id]));
     }
 
+    /** Create a company from another form and return the new selectable record. */
+    public function quickCreateCompany(Request $request): Response
+    {
+        $user = $this->user();
+        if ($user instanceof Response) return Response::json(['error' => 'Sign in again before creating a company.'], 401);
+        if (!$this->csrf->verify($request->body['_csrf'] ?? null)) return Response::json(['error' => 'Your session expired. Refresh this page and try again.'], 403);
+        [$input, $errors] = CompanyInput::fromArray($request->body);
+        if ($input === null) return Response::json(['error' => reset($errors) ?: 'Enter a valid company.'], 422);
+        try {
+            $id = $this->service->createCompany($input, false, (int) $user['id'], $request->requestId);
+        } catch (DuplicateWarning $warning) {
+            return Response::json(['error' => 'A possible duplicate already exists: ' . implode('; ', $warning->matches)], 409);
+        }
+        return Response::json(['record' => ['id' => $id, 'label' => $input->name]], 201);
+    }
+
     public function toggleCompany(Request $request,int $id,bool $restore):Response
     {
         $user=$this->user();if($user instanceof Response)return $user;
@@ -136,6 +152,29 @@ final class RecordController
          catch(\DomainException $exception){return $this->contactForm($id,$request->body,['company_id'=>$exception->getMessage()],[],422);}
         $this->flash->add('success',$request->body['version']??null?'Contact updated.':'Contact created.');
         return Response::redirect($this->router->url('contacts.edit',['id'=>$id]));
+    }
+
+    /** Create a contact from another form and return the new selectable record. */
+    public function quickCreateContact(Request $request): Response
+    {
+        $user = $this->user();
+        if ($user instanceof Response) return Response::json(['error' => 'Sign in again before creating a contact.'], 401);
+        if (!$this->csrf->verify($request->body['_csrf'] ?? null)) return Response::json(['error' => 'Your session expired. Refresh this page and try again.'], 403);
+        [$input, $errors] = ContactInput::fromArray($request->body);
+        if ($input === null) return Response::json(['error' => reset($errors) ?: 'Enter a valid contact.'], 422);
+        try {
+            $id = $this->service->createContact($input, false, (int) $user['id'], $request->requestId);
+        } catch (DuplicateWarning $warning) {
+            return Response::json(['error' => 'A possible duplicate already exists: ' . implode('; ', $warning->matches)], 409);
+        } catch (\DomainException $exception) {
+            return Response::json(['error' => $exception->getMessage()], 422);
+        }
+        $contact = (new RecordRepository($this->database->pdo()))->contact($id);
+        $name = trim(($contact['first_name'] ?? '') . ' ' . ($contact['last_name'] ?? ''));
+        return Response::json(['record' => [
+            'id' => $id,
+            'label' => $name . (($contact['company_name'] ?? null) ? ' — ' . $contact['company_name'] : ' — Independent'),
+        ]], 201);
     }
 
     public function toggleContact(Request $request,int $id,bool $restore):Response
