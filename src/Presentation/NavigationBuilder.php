@@ -19,8 +19,8 @@ final class NavigationBuilder
         $items = [
             ['dashboard', 'dashboard', 'Dashboard'],
             ['work.index', $campaignDestination ?? 'work.index', 'Daily work'],
-            ['prospects.index', $campaignDestination ?? 'prospects.index', 'Prospects'],
-            ['opportunities.index', $campaignDestination ?? 'opportunities.index', 'Opportunities'],
+            ['prospects.index', 'prospects.index', 'Prospects'],
+            ['opportunities.index', 'opportunities.index', 'Opportunities'],
             ['companies.index', 'companies.index', 'Companies'],
             ['data.index', 'data.index', 'Data tools'],
             ['campaign.settings', 'campaign.settings', 'Campaign settings'],

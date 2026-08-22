@@ -120,7 +120,7 @@ $test('authentication normalizes and validates owner email', static function () 
     $assert(AuthenticationService::normalizeEmail(str_repeat('a', 250) . '@x.test') === null);
 });
 
-$test('navigation redirects campaign work to setup without losing current semantics', static function () use ($assert): void {
+$test('navigation keeps prospects and opportunities reachable when campaign setup is incomplete', static function () use ($assert): void {
     $router = new Router('/workspace');
     foreach ([
         'dashboard' => '/', 'work.index' => '/work', 'prospects.index' => '/prospects', 'opportunities.index' => '/opportunities',
@@ -130,8 +130,8 @@ $test('navigation redirects campaign work to setup without losing current semant
         $router->add('GET', $path, static fn (): Response => Response::html(''), $name);
     }
     $withoutCampaign = (new NavigationBuilder($router))->build('dashboard', false);
-    $assert($withoutCampaign[2]['url'] === '/workspace/settings/campaign');
-    $assert($withoutCampaign[3]['url'] === '/workspace/settings/campaign');
+    $assert($withoutCampaign[2]['url'] === '/workspace/prospects');
+    $assert($withoutCampaign[3]['url'] === '/workspace/opportunities');
     $assert(count(array_filter($withoutCampaign, static fn (array $item): bool => $item['current'])) === 1);
     $withCampaign = (new NavigationBuilder($router))->build('prospects.index', true);
     $assert($withCampaign[2]['url'] === '/workspace/prospects' && $withCampaign[2]['current']);
