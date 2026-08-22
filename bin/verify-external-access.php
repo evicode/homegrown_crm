@@ -37,7 +37,7 @@ try {
     if ($current === null) throw new RuntimeException('Temporary integration disappeared.');
     $service->revoke($clientId, $owner, (int) $current['version'], 'Acceptance check complete', 'acceptance-revoke-' . bin2hex(random_bytes(6)));
     $revoked = $application->run(new Request('GET', '/api/v1/capabilities', $headers, requestId: 'acceptance-api-002'));
-    if ($revoked->status !== 401) throw new RuntimeException('Revoked token was still accepted.');
+    if ($revoked->status !== 401) throw new RuntimeException('Revoked token check returned HTTP ' . $revoked->status . ': ' . $revoked->body);
     echo "PASS external API access, MCP initialization, and immediate token revocation\n";
 } finally {
     unset($token);

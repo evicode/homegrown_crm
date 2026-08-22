@@ -372,11 +372,11 @@ final class ApiController
             return Response::json($result, $status, $headers);
         } catch (\OutOfBoundsException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 404, 'not_found', $error->getMessage());
         } catch (StaleRecordVersion $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 412, 'stale_version', $error->getMessage());
-        } catch (\LogicException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 428, 'precondition_required', $error->getMessage());
-        } catch (\InvalidArgumentException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 422, 'validation_failed', $error->getMessage());
         } catch (\DomainException $error) {
             $status = $actor === null ? 401 : (str_contains($error->getMessage(), 'scope') ? 403 : 409);
             return $this->failed($request, $actor?->integrationClientId, $capability, $status, $status === 401 ? 'authentication_required' : ($status === 403 ? 'insufficient_scope' : 'conflict'), $status === 401 ? 'Bearer authentication is required.' : $error->getMessage());
+        } catch (\LogicException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 428, 'precondition_required', $error->getMessage());
+        } catch (\InvalidArgumentException $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 422, 'validation_failed', $error->getMessage());
         } catch (\Throwable $error) { return $this->failed($request, $actor?->integrationClientId, $capability, 500, 'internal_error', 'An unexpected API error occurred.'); }
     }
 
