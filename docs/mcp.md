@@ -8,5 +8,9 @@ The initial MCP surface contains:
 
 - `get_active_campaign` (`campaign:read`)
 - `get_campaign_report` (`reports:read`)
+- `search_companies`, `get_company` (`companies:read`)
+- `search_contacts`, `get_contact` (`contacts:read`)
+- `search_prospects`, `get_prospect` (`prospects:read`)
+- `get_opportunity` (`opportunities:read`)
 
 This endpoint is backed by the official [`mcp/sdk`](https://github.com/modelcontextprotocol/php-sdk) Streamable HTTP transport. Its server session files live below `var/tmp/mcp-sessions`, are outside the public directory, and expire after 15 minutes.
