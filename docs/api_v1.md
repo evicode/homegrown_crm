@@ -40,3 +40,5 @@ Use the same pattern for follow-ups (`POST /api/v1/prospects/{id}/follow-ups`) a
 The current API slice covers campaign context, capability discovery, company and contact search/read/create, prospect search/read/create, interaction recording, follow-up scheduling, and opportunity creation. Browser cookies are not accepted by these routes.
 
 Prospects also support `PATCH /api/v1/prospects/{id}`, `POST /api/v1/prospects/{id}:transition`, `POST /api/v1/prospects/{id}/signals`, and explicit archive/restore commands. They use the prospect `ETag` in `If-Match` exactly like companies and contacts.
+
+Follow-ups can be read, rescheduled, completed, or cancelled at `/api/v1/follow-ups/{id}` and its `:reschedule`, `:complete`, and `:cancel` commands. Opportunities can be read, updated, and transitioned at `/api/v1/opportunities/{id}` and `{id}:transition`. These commands also require the current ETag, an idempotency key, and the matching write scope.

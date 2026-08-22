@@ -17,6 +17,7 @@ use Dreamsmith\Campaign\Integration\IntegrationAccessEvents;
 use Dreamsmith\Campaign\Interaction\InteractionInput;
 use Dreamsmith\Campaign\Interaction\InteractionService;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
+use Dreamsmith\Campaign\Opportunity\OpportunityRepository;
 use Dreamsmith\Campaign\Persistence\Database;
 use Dreamsmith\Campaign\Prospect\ProspectInput;
 use Dreamsmith\Campaign\Prospect\ProspectRepository;
@@ -266,6 +267,50 @@ final class ApiController
         });
     }
 
+    public function followUp(Request $request, int $id): Response
+    {
+        return $this->read($request, 'follow_up.get', function () use ($id): array { $followUp = $this->followUpData($id); return ['follow_up' => $followUp, '_etag' => $this->etag('follow-up', $id, (int) $followUp['version'])]; });
+    }
+
+    public function rescheduleFollowUp(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'follow_up.reschedule', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['prospect_version', 'action', 'due_at']); $due = $this->isoTime($body['due_at'] ?? null);
+            $this->followUps->reschedule($id, $this->text($body['action'] ?? ''), $due, $this->ifMatch($request, 'follow-up', $id), $this->version($body['prospect_version'] ?? null, 'prospect_version'), (int) $actor->ownerUserId, $actor->correlationId);
+            $followUp = $this->followUpData($id); return ['follow_up' => $followUp, '_etag' => $this->etag('follow-up', $id, (int) $followUp['version'])];
+        });
+    }
+
+    public function closeFollowUp(Request $request, int $id, bool $cancel = false): Response
+    {
+        return $this->mutate($request, $cancel ? 'follow_up.cancel' : 'follow_up.complete', function ($actor, array $body) use ($request, $id, $cancel): array {
+            $this->strict($body, $cancel ? ['reason'] : []); $this->followUps->close($id, $this->ifMatch($request, 'follow-up', $id), $cancel, $this->text($body['reason'] ?? ''), (int) $actor->ownerUserId, $actor->correlationId);
+            $followUp = $this->followUpData($id); return ['follow_up' => $followUp, '_etag' => $this->etag('follow-up', $id, (int) $followUp['version'])];
+        });
+    }
+
+    public function opportunity(Request $request, int $id): Response
+    {
+        return $this->read($request, 'opportunity.get', function () use ($id): array { $opportunity = (new OpportunityRepository($this->database->pdo()))->find($id); if ($opportunity === null) throw new \OutOfBoundsException('Opportunity not found.'); return ['opportunity' => $this->opportunityData($opportunity), '_etag' => $this->etag('opportunity', $id, (int) $opportunity['version'])]; });
+    }
+
+    public function updateOpportunity(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'opportunity.update', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['offer_key', 'value_amount', 'expected_close_on']); $this->opportunities->update($id, $body, $this->ifMatch($request, 'opportunity', $id), (int) $actor->ownerUserId, $actor->correlationId);
+            $opportunity = (new OpportunityRepository($this->database->pdo()))->find($id); return ['opportunity' => $this->opportunityData($opportunity), '_etag' => $this->etag('opportunity', $id, (int) $opportunity['version'])];
+        });
+    }
+
+    public function transitionOpportunity(Request $request, int $id): Response
+    {
+        return $this->mutate($request, 'opportunity.transition', function ($actor, array $body) use ($request, $id): array {
+            $this->strict($body, ['to_stage', 'reason', 'follow_up_disposition']); $to = $this->text($body['to_stage'] ?? ''); if (!isset($this->sales['opportunity_stages'][$to])) throw new \InvalidArgumentException('to_stage is invalid.');
+            $this->opportunities->transition($id, $to, $this->text($body['reason'] ?? ''), $this->ifMatch($request, 'opportunity', $id), $this->text($body['follow_up_disposition'] ?? ''), (int) $actor->ownerUserId, $actor->correlationId);
+            $opportunity = (new OpportunityRepository($this->database->pdo()))->find($id); return ['opportunity' => $this->opportunityData($opportunity), '_etag' => $this->etag('opportunity', $id, (int) $opportunity['version'])];
+        });
+    }
+
     private function read(Request $request, string $capability, callable $operation): Response
     {
         return $this->run($request, $capability, false, fn ($actor): array => $operation($actor));
@@ -322,11 +367,14 @@ final class ApiController
     private function etag(string $type, int $id, int $version): string { return '"' . $type . '-' . $id . '-' . $version . '"'; }
     private function ifMatch(Request $request, string $type, int $id): int { $header = (string) ($request->headers['if-match'] ?? ''); if (preg_match('/^"' . preg_quote($type, '/') . '-' . $id . '-([1-9][0-9]*)"$/', $header, $matches) !== 1) throw new \LogicException('A current If-Match ETag is required.'); return (int) $matches[1]; }
     private function text(mixed $value): string { return is_string($value) ? trim($value) : ''; }
+    private function isoTime(mixed $value): DateTimeImmutable { $raw = $this->text($value); if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/', $raw) !== 1) throw new \InvalidArgumentException('due_at must be an ISO-8601 timestamp with a timezone.'); return new DateTimeImmutable($raw, new DateTimeZone('UTC')); }
     private function validation(array $errors): array { return ['status' => 422, 'code' => 'validation_failed', 'errors' => $errors]; }
     private function headers(): array { return ['Cache-Control' => 'private, no-store', 'X-API-Version' => '1']; }
     private function problem(int $status, string $code, string $detail, array $headers = []): Response { return Response::json(['type' => 'https://dreamsmith.local/problems/' . $code, 'title' => str_replace('_', ' ', $code), 'status' => $status, 'code' => $code, 'detail' => $detail], $status, $headers + $this->headers()); }
     private function campaign(array $value): array { return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'name' => $value['name'], 'start_date' => $value['start_date'], 'end_date' => $value['end_date']]; }
     private function companyData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Company not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'name' => $value['name'], 'website' => $value['website'], 'location' => $value['location'], 'industry' => $value['industry'], 'employee_range' => $value['employee_range'], 'revenue_range' => $value['revenue_range'], 'notes' => $value['notes']]; }
     private function contactData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Contact not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'company_id' => $value['company_id'] === null ? null : (int) $value['company_id'], 'company_name' => $value['company_name'] ?? null, 'first_name' => $value['first_name'], 'last_name' => $value['last_name'], 'role' => $value['role'], 'email' => $value['email'], 'phone' => $value['phone'], 'linkedin_url' => $value['linkedin_url']]; }
+    private function followUpData(int $id): array { $s = $this->database->pdo()->prepare('SELECT * FROM follow_ups WHERE id=:id'); $s->execute(['id' => $id]); $value = $s->fetch(); if (!is_array($value)) throw new \OutOfBoundsException('Follow-up not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'prospect_id' => (int) $value['prospect_id'], 'opportunity_id' => $value['opportunity_id'] === null ? null : (int) $value['opportunity_id'], 'action' => $value['action'], 'due_at' => $value['due_at'], 'status' => $value['status'], 'cancellation_reason' => $value['cancellation_reason']]; }
+    private function opportunityData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Opportunity not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'prospect_id' => (int) $value['prospect_id'], 'stage' => $value['stage'], 'offer_key' => $value['offer_key'], 'value_amount' => $value['value_amount'], 'expected_close_on' => $value['expected_close_on'], 'closed_at' => $value['closed_at'], 'lost_reason' => $value['lost_reason']]; }
     private function prospectData(?array $value): array { if ($value === null) throw new \OutOfBoundsException('Prospect not found.'); return ['id' => (int) $value['id'], 'version' => (int) $value['version'], 'campaign_id' => (int) $value['campaign_id'], 'company_id' => $value['company_id'] === null ? null : (int) $value['company_id'], 'primary_contact_id' => $value['primary_contact_id'] === null ? null : (int) $value['primary_contact_id'], 'segment' => $value['segment'], 'status' => $value['status'], 'source' => $value['source'], 'why_them' => $value['why_them'], 'business_problem' => $value['business_problem'], 'qualification_notes' => $value['qualification_notes'], 'company_name' => $value['company_name'] ?? null, 'contact_name' => trim((string) (($value['first_name'] ?? '') . ' ' . ($value['last_name'] ?? ''))) ?: null]; }
 }

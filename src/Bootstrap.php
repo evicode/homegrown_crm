@@ -157,7 +157,14 @@ final class Bootstrap
         $router->add('POST', '/api/v1/prospects/{id}:restore', static fn (Request $request, array $parameters): Response => $apiController->archiveProspect($request, (int) $parameters['id'], true), 'api.prospects.restore');
         $router->add('POST', '/api/v1/prospects/{id}/interactions', static fn (Request $request, array $parameters): Response => $apiController->recordInteraction($request, (int) $parameters['id']), 'api.interactions.create');
         $router->add('POST', '/api/v1/prospects/{id}/follow-ups', static fn (Request $request, array $parameters): Response => $apiController->scheduleFollowUp($request, (int) $parameters['id']), 'api.followups.create');
+        $router->add('GET', '/api/v1/follow-ups/{id}', static fn (Request $request, array $parameters): Response => $apiController->followUp($request, (int) $parameters['id']), 'api.followups.show');
+        $router->add('POST', '/api/v1/follow-ups/{id}:reschedule', static fn (Request $request, array $parameters): Response => $apiController->rescheduleFollowUp($request, (int) $parameters['id']), 'api.followups.reschedule');
+        $router->add('POST', '/api/v1/follow-ups/{id}:complete', static fn (Request $request, array $parameters): Response => $apiController->closeFollowUp($request, (int) $parameters['id']), 'api.followups.complete');
+        $router->add('POST', '/api/v1/follow-ups/{id}:cancel', static fn (Request $request, array $parameters): Response => $apiController->closeFollowUp($request, (int) $parameters['id'], true), 'api.followups.cancel');
         $router->add('POST', '/api/v1/prospects/{id}/opportunities', static fn (Request $request, array $parameters): Response => $apiController->createOpportunity($request, (int) $parameters['id']), 'api.opportunities.create');
+        $router->add('GET', '/api/v1/opportunities/{id}', static fn (Request $request, array $parameters): Response => $apiController->opportunity($request, (int) $parameters['id']), 'api.opportunities.show');
+        $router->add('PATCH', '/api/v1/opportunities/{id}', static fn (Request $request, array $parameters): Response => $apiController->updateOpportunity($request, (int) $parameters['id']), 'api.opportunities.update');
+        $router->add('POST', '/api/v1/opportunities/{id}:transition', static fn (Request $request, array $parameters): Response => $apiController->transitionOpportunity($request, (int) $parameters['id']), 'api.opportunities.transition');
 
         $router->add('GET', '/health/live', static fn (Request $request, array $parameters): Response => Response::json([
             'status' => 'ok',
