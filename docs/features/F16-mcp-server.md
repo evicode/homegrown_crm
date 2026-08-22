@@ -4,6 +4,10 @@
 
 Expose approved F14 capabilities to independently built AI-agent hosts through a standards-conforming remote Model Context Protocol server.
 
+## Current delivery
+
+`POST /mcp` is now wired through the official PHP SDK with protocol baseline `2025-11-25`, local bearer-token authentication, scope-filtered tool discovery, and the active-campaign/report read tools. Additional tool families will be added by reusing the established API-domain services.
+
 ## Protocol and transport
 
 - Endpoint `/mcp` through the canonical front controller.

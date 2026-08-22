@@ -23,6 +23,7 @@ use Dreamsmith\Campaign\Integration\IntegrationService;
 use Dreamsmith\Campaign\Integration\BearerTokenGuard;
 use Dreamsmith\Campaign\Integration\CapabilityCatalog;
 use Dreamsmith\Campaign\Integration\LocalTokenAuthenticator;
+use Dreamsmith\Campaign\Mcp\McpController;
 use Dreamsmith\Campaign\Opportunity\OpportunityController;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
 use Dreamsmith\Campaign\FollowUp\FollowUpController;
@@ -133,6 +134,10 @@ final class Bootstrap
             $apiData,
             $sales, $integrations, new SystemClock(),
         );
+        $mcpController = new McpController($database, new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)), new CapabilityCatalog((array) $integrations['capabilities']), $root . '/var/tmp/mcp-sessions');
+
+        $router->add('POST', '/mcp', static fn (Request $request): Response => $mcpController->handle($request), 'mcp');
+        $router->add('GET', '/mcp', static fn (Request $request): Response => $mcpController->handle($request), 'mcp.get');
 
         $router->add('GET', '/api/openapi.json', static fn (Request $request): Response => $apiController->openApi($request), 'api.openapi');
         $router->add('GET', '/api/v1/capabilities', static fn (Request $request): Response => $apiController->capabilities($request), 'api.capabilities');
