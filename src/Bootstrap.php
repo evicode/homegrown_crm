@@ -134,7 +134,7 @@ final class Bootstrap
             $apiData,
             $sales, $integrations, new SystemClock(),
         );
-        $mcpController = new McpController($database, new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)), new CapabilityCatalog((array) $integrations['capabilities']), $root . '/var/tmp/mcp-sessions');
+        $mcpController = new McpController($database, new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)), new CapabilityCatalog((array) $integrations['capabilities']), $root . '/var/tmp/mcp-sessions', $sales, $integrations);
 
         $router->add('POST', '/mcp', static fn (Request $request): Response => $mcpController->handle($request), 'mcp');
         $router->add('GET', '/mcp', static fn (Request $request): Response => $mcpController->handle($request), 'mcp.get');
