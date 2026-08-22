@@ -6,7 +6,7 @@ All authenticated requests use `Authorization: Bearer YOUR_TOKEN`. Mutations als
 
 ```sh
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  http://localhost/conversions/public/api/v1/capabilities
+  http://localhost/conversions/api/v1/capabilities
 ```
 
 The available capabilities reflect the scopes selected when the token was created. The public contract index is at `/api/openapi.json`.
@@ -18,7 +18,7 @@ For company and contact updates, first read the resource and send its returned `
 Create a prospect, retaining the returned `version`:
 
 ```sh
-curl -X POST http://localhost/conversions/public/api/v1/prospects \
+curl -X POST http://localhost/conversions/api/v1/prospects \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: prospect-create-20260821-a1" \
@@ -28,7 +28,7 @@ curl -X POST http://localhost/conversions/public/api/v1/prospects \
 Record an interaction using the current prospect version:
 
 ```sh
-curl -X POST http://localhost/conversions/public/api/v1/prospects/PROSPECT_ID/interactions \
+curl -X POST http://localhost/conversions/api/v1/prospects/PROSPECT_ID/interactions \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: interaction-20260821-a1" \

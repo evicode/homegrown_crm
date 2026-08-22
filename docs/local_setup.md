@@ -4,7 +4,7 @@ The application is designed for compatible LAMP environments and does not depend
 
 ## Requirements
 
-Use the versions and extensions in [deployment requirements](deployment_requirements.md). Point the web server document root at `public/`; the root `.htaccess` is only a defensive fallback for hosting that cannot do so.
+Use the versions and extensions in [deployment requirements](deployment_requirements.md). Deploy the project folder directly under the web root; the root `index.php` is the front controller and the root `.htaccess` blocks private project directories.
 
 ## Configuration
 

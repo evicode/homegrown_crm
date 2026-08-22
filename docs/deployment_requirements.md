@@ -10,7 +10,7 @@ This application targets compatible LAMP environments and does not assume the cu
 - MySQL 8+ or a MariaDB version verified by migration and generated-column tests.
 - Composer available during build/deployment; `vendor/` may be produced before upload when hosting does not provide Composer.
 - HTTPS for every non-local deployment.
-- Ability to point the web document root at `public/`, or an equivalently secure host configuration that prevents access to source/configuration/runtime directories.
+- Ability to host the project folder directly, with Apache rewrite rules enabled so the root `.htaccess` can prevent access to source/configuration/runtime directories.
 - Writable, non-public runtime locations for logs, temporary imports, and exports.
 - Environment or host-supplied configuration for origins, base path, database, sessions, and integrations.
 

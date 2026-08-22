@@ -311,7 +311,7 @@ Use the existing LAMP stack:
 - Semantic HTML, plain CSS, and vanilla JavaScript.
 - Progressive enhancement: core forms and navigation should work without JavaScript; use JavaScript for filters, dialogs, fetch-based quick actions, and import previews.
 
-The canonical source tree and dependency direction are defined only in `project_specification.md`; this build plan does not maintain a second architecture. Use a small front controller and explicit route table. Configure Apache so `public/` is the document root; the repository root must not be publicly browsable. Support a configured base path for local subdirectory deployments. Avoid introducing a framework, build tool, SPA state layer, CSS framework, or JavaScript dependency unless the MVP demonstrates a concrete need.
+The canonical source tree and dependency direction are defined only in `project_specification.md`; this build plan does not maintain a second architecture. Use a small root front controller and explicit route table. Configure Apache with rewrite rules that block private project directories. Support a configured base path for local subdirectory deployments. Avoid introducing a framework, build tool, SPA state layer, CSS framework, or JavaScript dependency unless the MVP demonstrates a concrete need.
 
 ## 11. DRY implementation boundaries
 

@@ -2,7 +2,7 @@
 
 ## Release
 
-1. Confirm the server document root is `public/`, HTTPS is active, and source/configuration/runtime directories are not web-accessible.
+1. Confirm the project folder is served through its root `index.php`, HTTPS is active, and source/configuration/runtime directories are not web-accessible.
 2. Take and verify a database backup before migrations. CSV exports are not backups.
 3. Set production environment values outside the repository: database credentials, `AUTH_FINGERPRINT_KEY`, `IMPORT_SIGNING_KEY`, canonical origin, and session settings.
 4. Run `composer install --no-dev --optimize-autoloader`, `php bin/lint.php`, and `php tests/run.php` in the release environment.

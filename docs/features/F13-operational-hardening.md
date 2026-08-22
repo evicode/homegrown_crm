@@ -14,7 +14,7 @@ Make the browser CRM deployable, observable, recoverable, accessible, and safe b
 
 ## Deployment
 
-- Apache document root points to `public/`.
+- Apache serves the project root through its root front controller and `.htaccess` protections.
 - HTTPS is required outside localhost.
 - Canonical origin/base path and trusted proxies are explicit.
 - Production debug/display errors are off.

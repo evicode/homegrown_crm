@@ -629,15 +629,15 @@ Unknown or invalid values fall back safely and never become raw SQL fragments.
 
 ### 10.5 Deployment and base path
 
-The required deployment model is an Apache virtual host or alias whose document root points directly to `public/`. The application does not assume XAMPP paths, a particular domain, or installation at the web root. A deployment-specific configuration is conceptually:
+The deployment model serves the project folder through its root `index.php`. The application does not assume XAMPP paths, a particular domain, or installation at the web root. A deployment-specific configuration is conceptually:
 
 ```apache
-DocumentRoot "/deployment-specific/path/to/project/public"
+DocumentRoot "/deployment-specific/path/to/project"
 ```
 
 If the application must remain reachable below a path such as `/conversions`, the base path is supplied by configuration and used by the router and URL generator; templates must not hard-code root-relative URLs.
 
-Serving the repository root directly is not an accepted production configuration. A defensive root `.htaccess` may deny access as a fallback, but it does not replace a correctly isolated document root. Deployment verification must confirm that `src/`, `config/`, `database/`, `templates/`, `tests/`, `var/`, and `docs/` cannot be fetched over HTTP.
+The root `.htaccess` is part of the deployment contract. Deployment verification must confirm that `src/`, `config/`, `database/`, `templates/`, `tests/`, `var/`, `docs/`, and `vendor/` cannot be fetched over HTTP.
 
 ### 10.6 Versioned JSON API contract
 
