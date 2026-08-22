@@ -123,7 +123,7 @@ final class CampaignController
         } catch (StaleCampaignVersion $exception) {
             return $this->editForm($id, ['conflict' => $exception->getMessage()], 409);
         }
-        $this->flash->add('success', 'Campaign settings saved.');
+        $this->flash->add('success', 'Campaign updated.');
         return Response::redirect($this->router->url('campaigns.edit', ['id' => $id]));
     }
 

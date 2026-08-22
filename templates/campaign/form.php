@@ -1,5 +1,5 @@
 <header class="page-header">
-    <div><p class="eyebrow">Campaign settings</p><h1><?= $editing ? 'Edit campaign' : 'New campaign' ?></h1><p>Campaign dates are interpreted as date-only values in the owner timezone.</p></div>
+    <div><p class="eyebrow">Campaigns</p><h1><?= $editing ? 'Edit campaign' : 'New campaign' ?></h1><p>Campaign dates are interpreted as date-only values in the owner timezone.</p></div>
 </header>
 
 <?php if (isset($errors['conflict'])): ?>

@@ -2,7 +2,7 @@
 <?php if ($campaign === null): ?>
     <section class="empty-state"><h2>Set up your campaign</h2><p>Your daily work queue will appear here after campaign configuration is complete.</p><p><a class="button" href="<?= $escape($campaignSetupUrl) ?>">Configure campaign</a></p></section>
 <?php else: ?>
-    <section class="settings-panel"><h2><?= $escape($campaign['name']) ?></h2><p>Active from <?= $escape($campaign['start_date']) ?> through <?= $escape($campaign['end_date']) ?>.<?php if ($report !== null && $report['campaign']['state'] === 'active'): ?> Day <?= $escape($report['campaign']['day_number']) ?>.<?php elseif ($report !== null): ?> Campaign <?= $escape($report['campaign']['state']) ?>.<?php endif; ?></p><p><a href="<?= $escape($campaignSetupUrl) ?>">Review campaign settings</a> · <a href="<?= $escape($reportUrl) ?>">View full campaign report</a></p></section>
+    <section class="settings-panel"><h2><?= $escape($campaign['name']) ?></h2><p>Active from <?= $escape($campaign['start_date']) ?> through <?= $escape($campaign['end_date']) ?>.<?php if ($report !== null && $report['campaign']['state'] === 'active'): ?> Day <?= $escape($report['campaign']['day_number']) ?>.<?php elseif ($report !== null): ?> Campaign <?= $escape($report['campaign']['state']) ?>.<?php endif; ?></p><p><a href="<?= $escape($campaignSetupUrl) ?>">View campaigns</a> · <a href="<?= $escape($reportUrl) ?>">View full campaign report</a></p></section>
 <?php endif; ?>
 <?php if ($report !== null): ?>
     <?php $primaryRate = $report['rates']['contact_to_conversation']; ?>

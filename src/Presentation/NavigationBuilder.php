@@ -23,7 +23,7 @@ final class NavigationBuilder
             ['opportunities.index', 'opportunities.index', 'Opportunities'],
             ['companies.index', 'companies.index', 'Companies'],
             ['data.index', 'data.index', 'Data tools'],
-            ['campaign.settings', 'campaign.settings', 'Campaign settings'],
+            ['campaign.settings', 'campaign.settings', 'Campaigns'],
             ['integrations.index', 'integrations.index', 'Integrations'],
         ];
         return array_map(fn (array $item): array => [
