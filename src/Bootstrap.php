@@ -120,6 +120,7 @@ final class Bootstrap
         $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
         $integrations = require $root . '/config/integrations.php';
         $integrationController = new IntegrationController($auth, $database, new IntegrationService($database, new AuditWriter(), new SystemClock(), $integrations), $integrations, $shell, $flash, $csrf, $router);
+        $apiData = new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']);
         $apiController = new ApiController(
             $database,
             new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)),
@@ -129,12 +130,15 @@ final class Bootstrap
             new FollowUpService($database, new AuditWriter(), new SystemClock()),
             new OpportunityService($database, new AuditWriter(), new SystemClock(), $sales),
             new RecordService($database, new AuditWriter(), new SystemClock()),
+            $apiData,
             $sales, $integrations, new SystemClock(),
         );
 
         $router->add('GET', '/api/openapi.json', static fn (Request $request): Response => $apiController->openApi($request), 'api.openapi');
         $router->add('GET', '/api/v1/capabilities', static fn (Request $request): Response => $apiController->capabilities($request), 'api.capabilities');
         $router->add('GET', '/api/v1/campaigns/active', static fn (Request $request): Response => $apiController->activeCampaign($request), 'api.campaign.active');
+        $router->add('GET', '/api/v1/reports/campaign', static fn (Request $request): Response => $apiController->campaignReport($request), 'api.reports.campaign');
+        $router->add('GET', '/api/v1/exports/{type}', static fn (Request $request, array $parameters): Response => $apiController->export($request, $parameters['type']), 'api.exports.download');
         $router->add('GET', '/api/v1/companies', static fn (Request $request): Response => $apiController->companies($request), 'api.companies.index');
         $router->add('POST', '/api/v1/companies', static fn (Request $request): Response => $apiController->createCompany($request), 'api.companies.create');
         $router->add('GET', '/api/v1/companies/{id}', static fn (Request $request, array $parameters): Response => $apiController->company($request, (int) $parameters['id']), 'api.companies.show');

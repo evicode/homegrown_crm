@@ -27,6 +27,8 @@ use Dreamsmith\Campaign\Records\CompanyInput;
 use Dreamsmith\Campaign\Records\ContactInput;
 use Dreamsmith\Campaign\Records\RecordRepository;
 use Dreamsmith\Campaign\Records\RecordService;
+use Dreamsmith\Campaign\Reporting\CampaignReportingService;
+use Dreamsmith\Campaign\Data\DataService;
 use Dreamsmith\Campaign\FollowUp\FollowUpService;
 use Dreamsmith\Campaign\Support\Clock;
 
@@ -42,6 +44,7 @@ final class ApiController
         private readonly FollowUpService $followUps,
         private readonly OpportunityService $opportunities,
         private readonly RecordService $records,
+        private readonly DataService $data,
         private readonly array $sales,
         private readonly array $config,
         private readonly Clock $clock,
@@ -55,6 +58,8 @@ final class ApiController
             'paths' => [
                 '/api/v1/capabilities' => ['get' => ['operationId' => 'capability.discover']],
                 '/api/v1/campaigns/active' => ['get' => ['operationId' => 'campaign.get_active']],
+                '/api/v1/reports/campaign' => ['get' => ['operationId' => 'report.get_campaign']],
+                '/api/v1/exports/{type}' => ['get' => ['operationId' => 'data.export']],
                 '/api/v1/companies' => ['get' => ['operationId' => 'company.search'], 'post' => ['operationId' => 'company.create']],
                 '/api/v1/contacts' => ['get' => ['operationId' => 'contact.search'], 'post' => ['operationId' => 'contact.create']],
                 '/api/v1/prospects' => ['get' => ['operationId' => 'prospect.search'], 'post' => ['operationId' => 'prospect.create']],
@@ -80,6 +85,27 @@ final class ApiController
             if ($campaign === null) throw new \OutOfBoundsException('No active campaign is configured.');
             return ['campaign' => $this->campaign($campaign)];
         });
+    }
+
+    public function campaignReport(Request $request): Response
+    {
+        return $this->read($request, 'report.get_campaign', function (): array {
+            $repository = new CampaignRepository($this->database->pdo()); $settings = $repository->settings(); $campaign = $settings['active_campaign_id'] === null ? null : $repository->find((int) $settings['active_campaign_id']);
+            if ($campaign === null) throw new \OutOfBoundsException('No active campaign is configured.');
+            return ['campaign' => $this->campaign($campaign), 'report' => (new CampaignReportingService($this->database->pdo()))->dashboard($campaign, (string) $settings['owner_timezone'])];
+        });
+    }
+
+    public function export(Request $request, string $type): Response
+    {
+        $actor = null;
+        try {
+            $actor = $this->tokens->authenticate($request); $this->capabilities->authorize($actor, 'data.export');
+            $export = $this->data->export($type); $this->event($request, $actor->integrationClientId, 'data.export', '200');
+            return new Response($export['body'], 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="' . $export['filename'] . '"'] + $this->headers());
+        } catch (\DomainException $error) { $status = $actor === null ? 401 : (str_contains($error->getMessage(), 'scope') ? 403 : 409); return $this->failed($request, $actor?->integrationClientId, 'data.export', $status, $status === 401 ? 'authentication_required' : ($status === 403 ? 'insufficient_scope' : 'conflict'), $status === 401 ? 'Bearer authentication is required.' : $error->getMessage());
+        } catch (\InvalidArgumentException $error) { return $this->failed($request, $actor?->integrationClientId, 'data.export', 404, 'not_found', $error->getMessage());
+        } catch (\Throwable) { return $this->failed($request, $actor?->integrationClientId, 'data.export', 500, 'internal_error', 'An unexpected API error occurred.'); }
     }
 
     public function prospects(Request $request): Response

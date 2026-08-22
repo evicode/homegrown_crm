@@ -42,3 +42,7 @@ The current API slice covers campaign context, capability discovery, company and
 Prospects also support `PATCH /api/v1/prospects/{id}`, `POST /api/v1/prospects/{id}:transition`, `POST /api/v1/prospects/{id}/signals`, and explicit archive/restore commands. They use the prospect `ETag` in `If-Match` exactly like companies and contacts.
 
 Follow-ups can be read, rescheduled, completed, or cancelled at `/api/v1/follow-ups/{id}` and its `:reschedule`, `:complete`, and `:cancel` commands. Opportunities can be read, updated, and transitioned at `/api/v1/opportunities/{id}` and `{id}:transition`. These commands also require the current ETag, an idempotency key, and the matching write scope.
+
+`GET /api/v1/reports/campaign` returns the active campaign's dashboard metrics, funnel, pipeline, queues, targets, and conversion rates under the `reports:read` scope.
+
+`GET /api/v1/exports/prospects`, `/interactions`, or `/opportunities` downloads a CSV under the `data:export` scope.
