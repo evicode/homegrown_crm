@@ -82,7 +82,7 @@ final class CampaignController
         }
         $id = $this->service->create($input, (int) $user['id'], $request->requestId);
         $this->flash->add('success', 'Campaign created. Activate it when you are ready to use it.');
-        return Response::redirect($this->router->url('campaigns.edit', ['id' => $id]));
+        return Response::redirect($this->router->url('campaigns.index'));
     }
 
     public function editForm(int $id, array $errors = [], int $status = 200, ?array $submittedValues = null): Response

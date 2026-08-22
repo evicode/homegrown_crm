@@ -222,7 +222,7 @@ final class Bootstrap
         $router->add('GET', '/campaigns/{id}/edit', static fn (Request $request, array $parameters): Response => $campaignController->editForm((int) $parameters['id']), 'campaigns.edit');
         $router->add('POST', '/campaigns/{id}/update', static fn (Request $request, array $parameters): Response => $campaignController->update($request, (int) $parameters['id']), 'campaigns.update');
         $router->add('POST', '/campaigns/{id}/activate', static fn (Request $request, array $parameters): Response => $campaignController->activate($request, (int) $parameters['id']), 'campaigns.activate');
-        $router->add('GET', '/settings/campaign', static fn (): Response => $campaignController->shortcut(), 'campaign.settings');
+        $router->add('GET', '/settings/campaign', static fn (): Response => $campaignController->index(), 'campaign.settings');
         $router->add('POST', '/settings/timezone', static fn (Request $request): Response => $campaignController->timezone($request), 'settings.timezone');
         $router->add('GET', '/companies', static fn (Request $request): Response => $recordController->companies($request), 'companies.index');
         $router->add('GET', '/companies/new', static fn (): Response => $recordController->companyForm(), 'companies.new');
