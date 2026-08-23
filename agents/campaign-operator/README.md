@@ -2,6 +2,12 @@
 
 This is a standalone, MCP-only campaign operator package. It does not read the CRM database directly and it does not contain any token.
 
+## Interactive ChatGPT terminal session on Windows
+
+Double-click [launch-campaign-agent.cmd](launch-campaign-agent.cmd) after signing in to the Codex CLI with your ChatGPT account. It starts an interactive Campaign Operator session in the terminal. The subscription model handles the conversation and reasoning; `run.php` makes the MCP calls to this CRM. No OpenAI API key is used by this launcher.
+
+The session is interactive, not a background service: it runs while the terminal is open and asks before CRM writes. It still needs the CRM integration token below, plus the Google Places key only when you run lead discovery.
+
 ## Setup
 
 Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). Export it only in the process that runs the operator:
