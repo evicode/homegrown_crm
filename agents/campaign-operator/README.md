@@ -39,7 +39,7 @@ $env:GOOGLE_PLACES_API_KEY = 'your-server-side-key'
 php agents/campaign-operator/run.php find 'custom software development companies in Portland, Oregon'
 ```
 
-Before the first search, copy `lead-profile.json.example` to `lead-profile.json` and replace its terms with your actual ideal customer. That local profile is ignored by Git. It controls what the agent means by a lead: required signals, positive signals, exclusions, preferred locations, and fit thresholds.
+Before the first search, open **Lead Finder → Ideal customer profile** in the CRM and define the required signals, positive signals and points, exclusions, locations, and score thresholds. The agent reads that profile through MCP; no local JSON file is used.
 
 `find` searches Google Places, checks each company through the CRM MCP `search_companies` tool, fetches the public homepage when available, and prints a review queue. Each candidate contains the transparent score, matching evidence, fit label, and whether it is already in your CRM.
 

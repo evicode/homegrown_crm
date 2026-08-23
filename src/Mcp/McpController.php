@@ -28,6 +28,7 @@ use Dreamsmith\Campaign\Interaction\InteractionInput;
 use Dreamsmith\Campaign\FollowUp\FollowUpService;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
 use Dreamsmith\Campaign\LeadFinder\LeadCandidateService;
+use Dreamsmith\Campaign\LeadFinder\LeadProfileRepository;
 use Mcp\Schema\Enum\ProtocolVersion;
 use Mcp\Server;
 use Mcp\Server\Session\FileSessionStore;
@@ -67,6 +68,7 @@ final class McpController
             if (in_array('opportunity.create', $allowed, true)) $server->addTool(fn (string $idempotency_key, int $prospect_id, int $prospect_version, string $offer_key, string $value_amount, ?string $expected_close_on = null, bool $attach_follow_up = false): array => $this->createOpportunity($actor, $idempotency_key, compact('prospect_id','prospect_version','offer_key','value_amount','expected_close_on','attach_follow_up')), 'create_opportunity', 'Create opportunity', 'Creates an opportunity for a qualified prospect.');
             if (in_array('opportunity.get', $allowed, true)) $server->addTool(fn (int $id): array => $this->opportunity($id), 'get_opportunity', 'Get opportunity', 'Gets an opportunity by ID.', inputSchema: $this->idSchema());
             if (in_array('lead_candidate.propose', $allowed, true)) $server->addTool(fn (string $idempotency_key,string $source,string $source_id,string $name,string $fit,int $score=0,?string $search_query=null,?string $website=null,?string $address=null,?string $category=null,?string $business_status=null,array $evidence=[]): array => $this->proposeLeadCandidate($actor,$idempotency_key,compact('source','source_id','name','fit','score','search_query','website','address','category','business_status','evidence')), 'propose_lead_candidate', 'Propose lead candidate', 'Adds researched lead evidence to the owner review queue.', inputSchema: $this->leadCandidateSchema());
+            if (in_array('lead_profile.get', $allowed, true)) $server->addTool(fn (): array => $this->leadProfile(), 'get_lead_profile', 'Ideal customer profile', 'Returns owner-defined lead qualification rules.');
             $factory = new Psr17Factory(); $psr = $factory->createServerRequest($request->method, 'http://localhost' . $request->path, $_SERVER)->withBody($factory->createStream($request->rawBody));
             foreach ($request->headers as $name => $value) $psr = $psr->withHeader($name, $value);
             $mcpResponse = $server->build()->run(new StreamableHttpTransport($psr, $factory, $factory));
@@ -81,6 +83,7 @@ final class McpController
 
     private function campaign(): array { $repository = new CampaignRepository($this->database->pdo()); $settings = $repository->settings(); $campaign = $settings['active_campaign_id'] === null ? null : $repository->find((int) $settings['active_campaign_id']); if ($campaign === null) return ['available' => false]; return ['available' => true, 'id' => (int) $campaign['id'], 'version' => (int) $campaign['version'], 'name' => $campaign['name'], 'start_date' => $campaign['start_date'], 'end_date' => $campaign['end_date']]; }
     private function report(): array { $repository = new CampaignRepository($this->database->pdo()); $settings = $repository->settings(); $campaign = $settings['active_campaign_id'] === null ? null : $repository->find((int) $settings['active_campaign_id']); if ($campaign === null) return ['available' => false]; return ['available' => true, 'campaign_id' => (int) $campaign['id'], 'report' => (new CampaignReportingService($this->database->pdo()))->dashboard($campaign, (string) $settings['owner_timezone'])]; }
+    private function leadProfile():array{return(new LeadProfileRepository($this->database->pdo()))->current();}
     private function companies(string $query): array { $rows = (new RecordRepository($this->database->pdo()))->companies(false, trim($query), 'name', 'asc', 50); return ['items' => array_map(fn (array $r): array => $this->companyRow($r), $rows)]; }
     private function company(int $id): array { $row = (new RecordRepository($this->database->pdo()))->company($id); if ($row === null || $row['archived_at'] !== null) return ['found' => false]; return ['found' => true, 'company' => $this->companyRow($row)]; }
     private function contacts(string $query): array { $rows = (new RecordRepository($this->database->pdo()))->contacts(trim($query), 50); return ['items' => array_map(fn (array $r): array => $this->contactRow($r), $rows)]; }

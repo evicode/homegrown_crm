@@ -208,6 +208,8 @@ final class Bootstrap
         $router->add('GET', '/work', static fn (): Response => $followUpController->work(), 'work.index');
         $router->add('GET', '/data', static fn (): Response => Response::redirect($router->url('data.import')), 'data.index');
         $router->add('GET', '/lead-finder', static fn (Request $request): Response => $leadFinderController->index($request), 'lead-finder.index');
+        $router->add('GET', '/lead-finder/profile', static fn (): Response => $leadFinderController->profile(), 'lead-finder.profile');
+        $router->add('POST', '/lead-finder/profile', static fn (Request $request): Response => $leadFinderController->updateProfile($request), 'lead-finder.profile.update');
         $router->add('POST', '/lead-finder/{id}/review', static fn (Request $request, array $parameters): Response => $leadFinderController->review($request, (int) $parameters['id']), 'lead-finder.review');
         $router->add('GET', '/data/import', static fn (): Response => $dataController->importForm(), 'data.import');
         $router->add('GET', '/data/import/template', static fn (): Response => $dataController->template(), 'data.import.template');

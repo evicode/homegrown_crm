@@ -94,18 +94,6 @@ function toolData(array $response): array
     return is_array($decoded) ? $decoded : [];
 }
 
-/** @return array<string,mixed> */
-function leadProfile(): array
-{
-    $path = __DIR__ . '/lead-profile.json';
-    if (!is_file($path)) throw new RuntimeException('Create lead-profile.json from lead-profile.json.example before qualifying leads.');
-    $profile = json_decode((string) file_get_contents($path), true);
-    if (!is_array($profile) || !is_array($profile['required_any'] ?? null) || !is_array($profile['positive_keywords'] ?? null) || !is_array($profile['negative_keywords'] ?? null)) {
-        throw new RuntimeException('lead-profile.json must define required_any, positive_keywords, and negative_keywords arrays.');
-    }
-    return $profile;
-}
-
 function publicWebsiteText(?string $url): string
 {
     if ($url === null || filter_var($url, FILTER_VALIDATE_URL) === false) return '';
@@ -166,7 +154,8 @@ try {
         $placesKey = getenv('GOOGLE_PLACES_API_KEY') ?: '';
         if ($query === '') throw new InvalidArgumentException('Use find <ideal-customer search query>.');
         if ($placesKey === '') throw new RuntimeException('Set GOOGLE_PLACES_API_KEY before using lead discovery.');
-        $profile = leadProfile();
+        $profile = toolData(callTool($endpoint, $token, $sessionId, $id++, 'get_lead_profile', []));
+        if (!is_array($profile['required_any'] ?? null) || !is_array($profile['positive_keywords'] ?? null) || !is_array($profile['negative_keywords'] ?? null)) throw new RuntimeException('The MCP token needs lead_profiles:read and the CRM ideal customer profile must be available.');
         $places = placeSearch($query, $placesKey)['places'] ?? [];
         $save = in_array('--save', $argv, true);
         $maxSaves = (int) (getenv('CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES') ?: 10);

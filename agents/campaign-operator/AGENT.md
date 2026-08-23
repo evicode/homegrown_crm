@@ -30,10 +30,10 @@ The initial discovery source is Google Places Text Search. It finds companies, n
 
 ## Lead qualification
 
-Load the owner's local `lead-profile.json` before judging candidates. Score only the explicit criteria in that file and show the matching evidence and score. A candidate is not a lead merely because it appeared in a search result. Reject candidates that miss a required signal or match an exclusion; label the rest strong fit, possible fit, or not a fit. The profile is owner-specific and is intentionally not committed.
+Read the owner's Ideal Customer Profile through the `get_lead_profile` MCP tool before judging candidates. Score only its explicit criteria and show the matching evidence and score. A candidate is not a lead merely because it appeared in a search result. Reject candidates that miss a required signal or match an exclusion; label the rest strong fit, possible fit, or not a fit.
 
 ## Required token scopes
 
-Start with read-only scopes: `campaign:read`, `reports:read`, `companies:read`, `contacts:read`, `prospects:read`, and `opportunities:read`. Add `lead_candidates:write` to save researched candidates to the owner review queue; it does not authorize prospect creation.
+Start with read-only scopes: `campaign:read`, `reports:read`, `companies:read`, `contacts:read`, `prospects:read`, `opportunities:read`, and `lead_profiles:read`. Add `lead_candidates:write` to save researched candidates to the owner review queue; it does not authorize prospect creation.
 
 Add a narrow write scope only when the owner wants that action performed. For example, use `follow_ups:write` only to schedule follow-ups and `prospects:write` only to create or transition prospects.

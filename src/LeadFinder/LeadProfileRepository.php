@@ -1,0 +1,9 @@
+<?php
+declare(strict_types=1);
+namespace Dreamsmith\Campaign\LeadFinder;
+use PDO;
+final class LeadProfileRepository{
+ public function __construct(private readonly PDO $pdo){}
+ /** @return array<string,mixed> */ public function current():array{$row=$this->pdo->query('SELECT * FROM lead_profile WHERE id=1')->fetch();if(!is_array($row))throw new \RuntimeException('Lead profile is missing.');return ['description'=>$row['description'],'required_any'=>json_decode($row['required_any_json'],true)?:[],'positive_keywords'=>json_decode($row['positive_keywords_json'],true)?:[],'negative_keywords'=>json_decode($row['negative_keywords_json'],true)?:[],'preferred_locations'=>json_decode($row['preferred_locations_json'],true)?:[],'minimum_score'=>(int)$row['minimum_score'],'strong_fit_score'=>(int)$row['strong_fit_score'],'version'=>(int)$row['version'],'updated_at'=>$row['updated_at']];}
+ /** @param array<string,mixed> $profile */ public function update(array $profile,int $version,int $user):bool{$s=$this->pdo->prepare('UPDATE lead_profile SET description=:description,required_any_json=:required,positive_keywords_json=:positive,negative_keywords_json=:negative,preferred_locations_json=:locations,minimum_score=:minimum,strong_fit_score=:strong,updated_by_user_id=:user,version=version+1 WHERE id=1 AND version=:version');$s->execute(['description'=>$profile['description'],'required'=>json_encode($profile['required_any'],JSON_THROW_ON_ERROR),'positive'=>json_encode($profile['positive_keywords'],JSON_THROW_ON_ERROR),'negative'=>json_encode($profile['negative_keywords'],JSON_THROW_ON_ERROR),'locations'=>json_encode($profile['preferred_locations'],JSON_THROW_ON_ERROR),'minimum'=>$profile['minimum_score'],'strong'=>$profile['strong_fit_score'],'user'=>$user,'version'=>$version]);return $s->rowCount()===1;}
+}
