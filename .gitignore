@@ -12,6 +12,8 @@
 *.p12
 *.pfx
 /vendor/
+__pycache__/
+*.py[cod]
 /var/log/*.log
 /var/tmp/*
 !/var/log/.gitkeep

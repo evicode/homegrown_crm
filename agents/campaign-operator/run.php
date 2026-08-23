@@ -169,6 +169,9 @@ try {
         $profile = leadProfile();
         $places = placeSearch($query, $placesKey)['places'] ?? [];
         $save = in_array('--save', $argv, true);
+        $maxSaves = (int) (getenv('CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES') ?: 10);
+        $maxSaves = min(20, max(1, $maxSaves));
+        $savedCount = 0;
         $candidates = [];
         foreach ($places as $place) {
             $name = trim((string) ($place['displayName']['text'] ?? ''));
@@ -182,7 +185,7 @@ try {
                 'already_in_crm' => $matches !== [], 'matching_company_ids' => array_column($matches, 'id'),
             ];
             $candidate += qualify($candidate, $profile);
-            if ($save && !$candidate['already_in_crm']) {
+            if ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount < $maxSaves) {
                 $saved = callTool($endpoint, $token, $sessionId, $id++, 'propose_lead_candidate', [
                     'idempotency_key' => bin2hex(random_bytes(16)), 'source' => $candidate['source'], 'source_id' => (string) $candidate['source_id'],
                     'search_query' => $query, 'name' => $candidate['name'], 'website' => $candidate['website'], 'address' => $candidate['address'],
@@ -190,10 +193,13 @@ try {
                     'score' => $candidate['score'], 'evidence' => $candidate['reasons'],
                 ]);
                 $candidate['queue_submission'] = toolData($saved);
+                $savedCount++;
+            } elseif ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount >= $maxSaves) {
+                $candidate['queue_submission'] = ['skipped' => 'Per-run save limit reached.'];
             }
             $candidates[] = $candidate;
         }
-        echo json_encode(['query' => $query, 'profile' => $profile['description'] ?? null, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        echo json_encode(['query' => $query, 'profile' => $profile['description'] ?? null, 'saved_count' => $savedCount, 'save_limit' => $maxSaves, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit(0);
     }
     if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, find, discover, or call <tool> <json-arguments>.');

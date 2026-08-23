@@ -8,6 +8,18 @@ Double-click [launch-campaign-agent.cmd](launch-campaign-agent.cmd) after signin
 
 The session is interactive, not a background service: it runs while the terminal is open and asks before CRM writes. It still needs the CRM integration token below, plus the Google Places key only when you run lead discovery.
 
+## Windows control panel and guardrails
+
+Run `py -3 campaign_control_panel.py` from this folder for a simple Windows interface. It only runs the fixed **brief**, **tool discovery**, and **lead finder** commands using argument lists (`shell=False`); it cannot run arbitrary terminal input.
+
+- Lead searches are dry-run by default.
+- Queue submission requires a review checkbox and a second confirmation.
+- Only strong/possible-fit, non-duplicate candidates can be saved.
+- Saved candidates are capped at 10 per run by default. Set `CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES` to a value from 1–20 to lower or raise that cap.
+- Each command has a 120-second timeout, and the CRM token is redacted from displayed output.
+
+Run `py -3 tests/campaign_operator_control_panel.test.py` from the project root to verify those command and redaction guardrails.
+
 ## Setup
 
 Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). Export it only in the process that runs the operator:
