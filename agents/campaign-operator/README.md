@@ -21,7 +21,9 @@ $env:GOOGLE_PLACES_API_KEY = 'your-server-side-key'
 php agents/campaign-operator/run.php find 'custom software development companies in Portland, Oregon'
 ```
 
-`find` searches Google Places, then calls the CRM MCP `search_companies` tool for every candidate. It prints a review queue containing name, website, address, category, business status, and whether a company with the same name is already present. It never creates a CRM record.
+Before the first search, copy `lead-profile.json.example` to `lead-profile.json` and replace its terms with your actual ideal customer. That local profile is ignored by Git. It controls what the agent means by a lead: required signals, positive signals, exclusions, preferred locations, and fit thresholds.
+
+`find` searches Google Places, checks each company through the CRM MCP `search_companies` tool, fetches the public homepage when available, and prints a review queue. Each candidate contains the transparent score, matching evidence, fit label, and whether it is already in your CRM. It never creates a CRM record.
 
 ## Commands
 

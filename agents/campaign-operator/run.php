@@ -94,6 +94,58 @@ function toolData(array $response): array
     return is_array($decoded) ? $decoded : [];
 }
 
+/** @return array<string,mixed> */
+function leadProfile(): array
+{
+    $path = __DIR__ . '/lead-profile.json';
+    if (!is_file($path)) throw new RuntimeException('Create lead-profile.json from lead-profile.json.example before qualifying leads.');
+    $profile = json_decode((string) file_get_contents($path), true);
+    if (!is_array($profile) || !is_array($profile['required_any'] ?? null) || !is_array($profile['positive_keywords'] ?? null) || !is_array($profile['negative_keywords'] ?? null)) {
+        throw new RuntimeException('lead-profile.json must define required_any, positive_keywords, and negative_keywords arrays.');
+    }
+    return $profile;
+}
+
+function publicWebsiteText(?string $url): string
+{
+    if ($url === null || filter_var($url, FILTER_VALIDATE_URL) === false) return '';
+    $parts = parse_url($url);
+    if (!in_array($parts['scheme'] ?? '', ['http', 'https'], true)) return '';
+    $host = strtolower((string) ($parts['host'] ?? ''));
+    if ($host === '' || $host === 'localhost' || str_ends_with($host, '.localhost')) return '';
+    $ip = gethostbyname($host);
+    if (filter_var($ip, FILTER_VALIDATE_IP) !== false && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) return '';
+    $context = stream_context_create(['http' => ['timeout' => 10, 'ignore_errors' => true, 'follow_location' => 0, 'max_redirects' => 0, 'header' => "User-Agent: DreamsmithCampaignLeadFinder/0.1\r\nAccept: text/html"]]);
+    $html = @file_get_contents($url, false, $context);
+    if (!is_string($html)) return '';
+    return strtolower(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(substr($html, 0, 60000)), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? ''));
+}
+
+/** @param array<string,mixed> $candidate @param array<string,mixed> $profile @return array<string,mixed> */
+function qualify(array $candidate, array $profile): array
+{
+    $websiteText = publicWebsiteText(is_string($candidate['website'] ?? null) ? $candidate['website'] : null);
+    $haystack = strtolower(implode(' ', array_filter([$candidate['name'] ?? null, $candidate['address'] ?? null, $candidate['category'] ?? null, $websiteText], 'is_string')));
+    $matches = static fn (string $term): bool => $term !== '' && str_contains($haystack, strtolower($term));
+    $reasons = []; $score = 0;
+    foreach ($profile['negative_keywords'] as $term) {
+        if (is_string($term) && $matches($term)) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ["Excluded: {$term}"], 'website_checked' => $websiteText !== ''];
+    }
+    $required = array_values(array_filter($profile['required_any'], 'is_string'));
+    $requiredMatches = array_values(array_filter($required, $matches));
+    if ($required !== [] && $requiredMatches === []) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ['No required signal matched.'], 'website_checked' => $websiteText !== ''];
+    foreach ($requiredMatches as $term) $reasons[] = "Required signal: {$term}";
+    foreach ($profile['positive_keywords'] as $term => $weight) {
+        if (is_string($term) && $matches($term)) { $points = max(1, (int) $weight); $score += $points; $reasons[] = "Matched {$term} (+{$points})"; }
+    }
+    foreach ($profile['preferred_locations'] ?? [] as $location) {
+        if (is_string($location) && $matches($location)) { $score += 1; $reasons[] = "Preferred location: {$location} (+1)"; }
+    }
+    $minimum = max(1, (int) ($profile['minimum_score'] ?? 1));
+    $strong = max($minimum, (int) ($profile['strong_fit_score'] ?? $minimum));
+    return ['fit' => $score >= $strong ? 'strong_fit' : ($score >= $minimum ? 'possible_fit' : 'not_fit'), 'score' => $score, 'reasons' => $reasons === [] ? ['No positive evidence matched.'] : $reasons, 'website_checked' => $websiteText !== ''];
+}
+
 try {
     [$sessionId, $id] = connect($endpoint, $token);
     if ($command === 'discover') {
@@ -114,6 +166,7 @@ try {
         $placesKey = getenv('GOOGLE_PLACES_API_KEY') ?: '';
         if ($query === '') throw new InvalidArgumentException('Use find <ideal-customer search query>.');
         if ($placesKey === '') throw new RuntimeException('Set GOOGLE_PLACES_API_KEY before using lead discovery.');
+        $profile = leadProfile();
         $places = placeSearch($query, $placesKey)['places'] ?? [];
         $candidates = [];
         foreach ($places as $place) {
@@ -121,14 +174,15 @@ try {
             if ($name === '') continue;
             $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
             $matches = array_values(array_filter($existing['items'] ?? [], static fn (array $company): bool => strcasecmp((string) ($company['name'] ?? ''), $name) === 0));
-            $candidates[] = [
+            $candidate = [
                 'source' => 'google_places', 'source_id' => $place['id'] ?? null, 'name' => $name,
                 'website' => $place['websiteUri'] ?? null, 'address' => $place['formattedAddress'] ?? null,
                 'category' => $place['primaryType'] ?? null, 'business_status' => $place['businessStatus'] ?? null,
                 'already_in_crm' => $matches !== [], 'matching_company_ids' => array_column($matches, 'id'),
             ];
+            $candidates[] = $candidate + qualify($candidate, $profile);
         }
-        echo json_encode(['query' => $query, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        echo json_encode(['query' => $query, 'profile' => $profile['description'] ?? null, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit(0);
     }
     if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, find, discover, or call <tool> <json-arguments>.');

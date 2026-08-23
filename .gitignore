@@ -5,6 +5,7 @@
 /agents/campaign-operator/.env
 /agents/campaign-operator/.env.*
 !/agents/campaign-operator/.env.example
+/agents/campaign-operator/lead-profile.json
 # Local credentials and private keys must never enter version control.
 *.pem
 *.key

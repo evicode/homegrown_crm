@@ -28,6 +28,10 @@ Read tools cover the active campaign, report, companies, contacts, prospects, an
 
 The initial discovery source is Google Places Text Search. It finds companies, not private contact data. Every result remains a proposed lead until the owner approves its creation in the CRM.
 
+## Lead qualification
+
+Load the owner's local `lead-profile.json` before judging candidates. Score only the explicit criteria in that file and show the matching evidence and score. A candidate is not a lead merely because it appeared in a search result. Reject candidates that miss a required signal or match an exclusion; label the rest strong fit, possible fit, or not a fit. The profile is owner-specific and is intentionally not committed.
+
 ## Required token scopes
 
 Start with read-only scopes: `campaign:read`, `reports:read`, `companies:read`, `contacts:read`, `prospects:read`, and `opportunities:read`.
