@@ -124,7 +124,7 @@ $test('navigation keeps prospects and opportunities reachable when campaign setu
     $router = new Router('/workspace');
     foreach ([
         'dashboard' => '/', 'work.index' => '/work', 'prospects.index' => '/prospects', 'opportunities.index' => '/opportunities',
-        'companies.index' => '/companies', 'data.index' => '/data', 'campaign.settings' => '/settings/campaign',
+        'companies.index' => '/companies', 'lead-finder.index' => '/lead-finder', 'data.index' => '/data', 'campaign.settings' => '/settings/campaign',
         'integrations.index' => '/integrations',
     ] as $name => $path) {
         $router->add('GET', $path, static fn (): Response => Response::html(''), $name);

@@ -19,6 +19,7 @@ return [
         'interactions:read' => 'Read interactions', 'interactions:write' => 'Record and correct interactions',
         'follow_ups:read' => 'Read follow-ups', 'follow_ups:write' => 'Schedule and complete follow-ups',
         'opportunities:read' => 'Read opportunities', 'opportunities:write' => 'Create and update opportunities',
+        'lead_candidates:write' => 'Submit researched lead candidates for owner review',
         'reports:read' => 'Read campaign reports', 'data:import' => 'Commit imports', 'data:export' => 'Export data',
     ],
     'capabilities' => [
@@ -52,6 +53,7 @@ return [
         'opportunity.get' => ['scopes' => ['opportunities:read'], 'mutation' => false, 'rate' => 'read'],
         'opportunity.update' => ['scopes' => ['opportunities:write'], 'mutation' => true, 'rate' => 'write'],
         'opportunity.transition' => ['scopes' => ['opportunities:write'], 'mutation' => true, 'rate' => 'write'],
+        'lead_candidate.propose' => ['scopes' => ['lead_candidates:write'], 'mutation' => true, 'rate' => 'write'],
         'data.export' => ['scopes' => ['data:export'], 'mutation' => false, 'rate' => 'export'],
         'data.import_commit' => ['scopes' => ['data:import'], 'mutation' => true, 'rate' => 'high'],
     ],

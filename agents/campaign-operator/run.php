@@ -168,6 +168,7 @@ try {
         if ($placesKey === '') throw new RuntimeException('Set GOOGLE_PLACES_API_KEY before using lead discovery.');
         $profile = leadProfile();
         $places = placeSearch($query, $placesKey)['places'] ?? [];
+        $save = in_array('--save', $argv, true);
         $candidates = [];
         foreach ($places as $place) {
             $name = trim((string) ($place['displayName']['text'] ?? ''));
@@ -180,7 +181,17 @@ try {
                 'category' => $place['primaryType'] ?? null, 'business_status' => $place['businessStatus'] ?? null,
                 'already_in_crm' => $matches !== [], 'matching_company_ids' => array_column($matches, 'id'),
             ];
-            $candidates[] = $candidate + qualify($candidate, $profile);
+            $candidate += qualify($candidate, $profile);
+            if ($save && !$candidate['already_in_crm']) {
+                $saved = callTool($endpoint, $token, $sessionId, $id++, 'propose_lead_candidate', [
+                    'idempotency_key' => bin2hex(random_bytes(16)), 'source' => $candidate['source'], 'source_id' => (string) $candidate['source_id'],
+                    'search_query' => $query, 'name' => $candidate['name'], 'website' => $candidate['website'], 'address' => $candidate['address'],
+                    'category' => $candidate['category'], 'business_status' => $candidate['business_status'], 'fit' => $candidate['fit'],
+                    'score' => $candidate['score'], 'evidence' => $candidate['reasons'],
+                ]);
+                $candidate['queue_submission'] = toolData($saved);
+            }
+            $candidates[] = $candidate;
         }
         echo json_encode(['query' => $query, 'profile' => $profile['description'] ?? null, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit(0);

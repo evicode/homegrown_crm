@@ -34,6 +34,6 @@ Load the owner's local `lead-profile.json` before judging candidates. Score only
 
 ## Required token scopes
 
-Start with read-only scopes: `campaign:read`, `reports:read`, `companies:read`, `contacts:read`, `prospects:read`, and `opportunities:read`.
+Start with read-only scopes: `campaign:read`, `reports:read`, `companies:read`, `contacts:read`, `prospects:read`, and `opportunities:read`. Add `lead_candidates:write` to save researched candidates to the owner review queue; it does not authorize prospect creation.
 
 Add a narrow write scope only when the owner wants that action performed. For example, use `follow_ups:write` only to schedule follow-ups and `prospects:write` only to create or transition prospects.

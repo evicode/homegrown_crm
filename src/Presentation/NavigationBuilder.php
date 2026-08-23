@@ -22,6 +22,7 @@ final class NavigationBuilder
             ['prospects.index', 'prospects.index', 'Prospects'],
             ['opportunities.index', 'opportunities.index', 'Opportunities'],
             ['companies.index', 'companies.index', 'Companies'],
+            ['lead-finder.index', 'lead-finder.index', 'Lead Finder'],
             ['data.index', 'data.index', 'Data tools'],
             ['campaign.settings', 'campaign.settings', 'Campaigns'],
             ['integrations.index', 'integrations.index', 'Integrations'],

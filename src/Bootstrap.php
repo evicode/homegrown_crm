@@ -18,6 +18,7 @@ use Dreamsmith\Campaign\Http\Response;
 use Dreamsmith\Campaign\Http\Router;
 use Dreamsmith\Campaign\Interaction\InteractionController;
 use Dreamsmith\Campaign\Interaction\InteractionService;
+use Dreamsmith\Campaign\LeadFinder\LeadFinderController;
 use Dreamsmith\Campaign\Integration\IntegrationController;
 use Dreamsmith\Campaign\Integration\IntegrationService;
 use Dreamsmith\Campaign\Integration\BearerTokenGuard;
@@ -121,6 +122,7 @@ final class Bootstrap
         $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
         $integrations = require $root . '/config/integrations.php';
         $integrationController = new IntegrationController($auth, $database, new IntegrationService($database, new AuditWriter(), new SystemClock(), $integrations), $integrations, $shell, $flash, $csrf, $router);
+        $leadFinderController = new LeadFinderController($auth, $database, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, $shell, $flash, $csrf, $router);
         $apiData = new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']);
         $apiController = new ApiController(
             $database,
@@ -205,6 +207,8 @@ final class Bootstrap
         $router->add('GET', '/opportunities', static fn (Request $request): Response => $opportunityController->index($request), 'opportunities.index');
         $router->add('GET', '/work', static fn (): Response => $followUpController->work(), 'work.index');
         $router->add('GET', '/data', static fn (): Response => Response::redirect($router->url('data.import')), 'data.index');
+        $router->add('GET', '/lead-finder', static fn (Request $request): Response => $leadFinderController->index($request), 'lead-finder.index');
+        $router->add('POST', '/lead-finder/{id}/review', static fn (Request $request, array $parameters): Response => $leadFinderController->review($request, (int) $parameters['id']), 'lead-finder.review');
         $router->add('GET', '/data/import', static fn (): Response => $dataController->importForm(), 'data.import');
         $router->add('GET', '/data/import/template', static fn (): Response => $dataController->template(), 'data.import.template');
         $router->add('POST', '/data/import/preview', static fn (Request $request): Response => $dataController->preview($request), 'data.import.preview');
