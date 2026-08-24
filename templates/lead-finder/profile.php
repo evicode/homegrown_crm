@@ -1,43 +1,59 @@
 <header class="page-header">
-    <div><p class="eyebrow">Lead Finder</p><h1>Ideal customer profile</h1><p>Tell the agent what a good lead looks like.</p></div>
+    <div><p class="eyebrow">Lead Finder</p><h1>Ideal customer profile</h1><p>Define what the agent should look for, then review every result before it becomes a prospect.</p></div>
 </header>
-<form method="post" action="<?= $escape($actionUrl) ?>" data-profile-upload-url="<?= $escape($uploadUrl) ?>">
+<form class="lead-profile-form" method="post" action="<?= $escape($actionUrl) ?>" data-profile-upload-url="<?= $escape($uploadUrl) ?>">
     <input type="hidden" name="_csrf" value="<?= $escape($csrfToken) ?>">
     <input type="hidden" name="version" value="<?= $escape($profile['version']) ?>">
-    <label>Profile description
+    <p class="lead-profile-form__intro">Type directly, or import a file to prefill one field. You can edit everything before saving.</p>
+    <section class="profile-description-card">
+        <div class="profile-field-card__header">
+            <div><label for="profile-description">In one sentence, describe your ideal customer</label><p>This gives the agent context for its research.</p></div>
+            <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-description" data-field="description" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+        </div>
         <input id="profile-description" name="description" value="<?= $escape($profile['description']) ?>" maxlength="500" placeholder="Example: Independent manufacturers that need custom internal software">
-        <span class="profile-upload">Fill this field from a file <input type="file" data-profile-upload data-target="profile-description" data-field="description" accept=".txt,.csv,.tsv,.xlsx,.docx"><span data-profile-upload-status role="status"></span></span>
-    </label>
-    <div class="field-grid lead-profile-grid">
-        <label>Must-have traits
-            <textarea id="profile-required-any" name="required_any" rows="7" placeholder="Example:&#10;custom manufacturing&#10;legacy systems&#10;manual production tracking"><?php foreach($profile['required_any'] as $value):?><?= $escape($value) ?>
+    </section>
+    <div class="lead-profile-grid">
+        <section class="profile-field-card">
+            <div class="profile-field-card__header">
+                <div><label for="profile-required-any">Must-have traits</label><p>A lead must match at least one of these.</p></div>
+                <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-required-any" data-field="required_any" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+            </div>
+            <textarea id="profile-required-any" name="required_any" rows="7" placeholder="One trait per line&#10;&#10;custom manufacturing&#10;legacy systems&#10;manual production tracking"><?php foreach($profile['required_any'] as $value):?><?= $escape($value) ?>
 <?php endforeach;?></textarea>
-            <span class="field-hint">One trait per line. The lead must match at least one.</span>
-            <span class="profile-upload">Fill this field from a file <input type="file" data-profile-upload data-target="profile-required-any" data-field="required_any" accept=".txt,.csv,.tsv,.xlsx,.docx"><span data-profile-upload-status role="status"></span></span>
-        </label>
-        <label>What the agent should look for
-            <textarea id="profile-positive-keywords" name="positive_keywords" rows="7" placeholder="Example:&#10;custom software | 5&#10;manual workflow | 3"><?php foreach($profile['positive_keywords'] as $term=>$weight):?><?= $escape($term) ?> | <?= $escape($weight) ?>
+            <p class="field-hint">Use one trait per line. A match on any one is required.</p>
+        </section>
+        <section class="profile-field-card">
+            <div class="profile-field-card__header">
+                <div><label for="profile-positive-keywords">What the agent should look for</label><p>Give extra weight to things that make a company a better fit.</p></div>
+                <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-positive-keywords" data-field="positive_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+            </div>
+            <textarea id="profile-positive-keywords" name="positive_keywords" rows="7" placeholder="What to look for | importance (1–20)&#10;&#10;custom software | 5&#10;manual workflow | 3"><?php foreach($profile['positive_keywords'] as $term=>$weight):?><?= $escape($term) ?> | <?= $escape($weight) ?>
 <?php endforeach;?></textarea>
-            <span class="field-hint"><strong>How this works:</strong> the agent adds the number when it finds the phrase in a company’s public information. Bigger numbers mean the trait matters more: 1 is a small clue; 20 is decisive. Enter one per line as <em>words to look for | importance (1–20)</em>, for example <code>custom software | 5</code>. The total is compared with your minimum score below.</span>
-            <span class="profile-upload">Fill this field from a file <input type="file" data-profile-upload data-target="profile-positive-keywords" data-field="positive_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"><span data-profile-upload-status role="status"></span></span>
-        </label>
-        <label>Exclusions
-            <textarea id="profile-negative-keywords" name="negative_keywords" rows="7" placeholder="Example:&#10;staffing agency&#10;consumer retail"><?php foreach($profile['negative_keywords'] as $value):?><?= $escape($value) ?>
+            <p class="field-hint">The words on the left are what it searches for. The number says how important that match is: 1 is a small clue; 20 is decisive.</p>
+        </section>
+        <section class="profile-field-card">
+            <div class="profile-field-card__header">
+                <div><label for="profile-negative-keywords">Exclude these</label><p>Any match here rules a company out.</p></div>
+                <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-negative-keywords" data-field="negative_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+            </div>
+            <textarea id="profile-negative-keywords" name="negative_keywords" rows="7" placeholder="One exclusion per line&#10;&#10;staffing agency&#10;consumer retail"><?php foreach($profile['negative_keywords'] as $value):?><?= $escape($value) ?>
 <?php endforeach;?></textarea>
-            <span class="field-hint">One exclusion per line. Any match rejects the candidate.</span>
-            <span class="profile-upload">Fill this field from a file <input type="file" data-profile-upload data-target="profile-negative-keywords" data-field="negative_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"><span data-profile-upload-status role="status"></span></span>
-        </label>
-        <label>Locations
-            <textarea id="profile-preferred-locations" name="preferred_locations" rows="7" placeholder="Example:&#10;Portland, Oregon&#10;Vancouver, Washington"><?php foreach($profile['preferred_locations'] as $value):?><?= $escape($value) ?>
+            <p class="field-hint">Use one exclusion per line.</p>
+        </section>
+        <section class="profile-field-card">
+            <div class="profile-field-card__header">
+                <div><label for="profile-preferred-locations">Preferred locations</label><p>Locations add to a company’s fit score.</p></div>
+                <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-preferred-locations" data-field="preferred_locations" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+            </div>
+            <textarea id="profile-preferred-locations" name="preferred_locations" rows="7" placeholder="One location per line&#10;&#10;Portland, Oregon&#10;Vancouver, Washington"><?php foreach($profile['preferred_locations'] as $value):?><?= $escape($value) ?>
 <?php endforeach;?></textarea>
-            <span class="field-hint">One location per line. Each matching location adds one point.</span>
-            <span class="profile-upload">Fill this field from a file <input type="file" data-profile-upload data-target="profile-preferred-locations" data-field="preferred_locations" accept=".txt,.csv,.tsv,.xlsx,.docx"><span data-profile-upload-status role="status"></span></span>
-        </label>
+            <p class="field-hint">Use one location per line. Each match adds one point.</p>
+        </section>
     </div>
-    <p class="field-hint">Uploads accept plain text, CSV/TSV, Excel (.xlsx), and Word (.docx), up to 2 MB. The file fills its matching field immediately, then is discarded. You can edit the imported text before choosing Save.</p>
-    <div class="field-grid">
-        <label>Minimum score<input type="number" name="minimum_score" min="1" max="100" value="<?= $escape($profile['minimum_score']) ?>" required></label>
-        <label>Strong-fit score<input type="number" name="strong_fit_score" min="1" max="100" value="<?= $escape($profile['strong_fit_score']) ?>" required></label>
-    </div>
+    <p class="lead-profile-form__note">Imports accept plain text, CSV/TSV, Excel (.xlsx), and Word (.docx), up to 2 MB. Imported files are discarded after their text fills the field.</p>
+    <section class="profile-score-card">
+        <div><h2>How strict should the match be?</h2><p>Use the total importance score from “What the agent should look for.”</p></div>
+        <div class="field-grid"><label>Minimum score<input type="number" name="minimum_score" min="1" max="100" value="<?= $escape($profile['minimum_score']) ?>" required></label><label>Strong-fit score<input type="number" name="strong_fit_score" min="1" max="100" value="<?= $escape($profile['strong_fit_score']) ?>" required></label></div>
+    </section>
     <div class="form-actions"><button>Save ideal customer profile</button><a href="<?= $escape($indexUrl) ?>">Back to Lead Finder</a></div>
 </form>
