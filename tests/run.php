@@ -37,6 +37,7 @@ use Dreamsmith\Campaign\Application\Audit\ActorContext;
 use Dreamsmith\Campaign\Support\FrozenClock;
 use Dreamsmith\Campaign\Support\Logger;
 use Dreamsmith\Campaign\Support\View;
+use Dreamsmith\Campaign\LeadFinder\ProfileFieldUpload;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -373,6 +374,17 @@ if (is_string($testDsn) && $testDsn !== '') {
         }
     });
 }
+
+$test('lead profile uploads read plain text and spreadsheet-style CSV rows', static function () use ($assert): void {
+    $path = tempnam(sys_get_temp_dir(), 'lead-profile-upload-'); if ($path === false) throw new RuntimeException('Could not create test file.');
+    try {
+        $upload = new ProfileFieldUpload();
+        file_put_contents($path, "custom software\nmanual workflow\n");
+        $assert($upload->text(['error'=>UPLOAD_ERR_OK,'tmp_name'=>$path,'size'=>filesize($path),'name'=>'traits.txt']) === "custom software\nmanual workflow");
+        file_put_contents($path, "custom software,5\nmanual workflow,3\n");
+        $assert($upload->text(['error'=>UPLOAD_ERR_OK,'tmp_name'=>$path,'size'=>filesize($path),'name'=>'weights.csv']) === "custom software | 5\nmanual workflow | 3");
+    } finally { @unlink($path); }
+});
 
 $failed = 0;
 foreach ($tests as $name => $body) {
