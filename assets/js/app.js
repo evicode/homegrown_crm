@@ -78,3 +78,37 @@ document.querySelectorAll('[data-quick-create]').forEach((form) => {
         }
     });
 });
+
+document.querySelectorAll('[data-profile-upload]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const form = input.closest('form');
+        const target = document.getElementById(input.dataset.target || '');
+        const status = input.closest('.profile-upload')?.querySelector('[data-profile-upload-status]');
+        const csrf = form?.querySelector('input[name="_csrf"]');
+        const uploadUrl = form?.dataset.profileUploadUrl;
+        if (!(form instanceof HTMLFormElement) || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) || !(csrf instanceof HTMLInputElement) || !uploadUrl) return;
+        input.disabled = true;
+        if (status instanceof HTMLElement) status.textContent = 'Reading file…';
+        try {
+            const data = new FormData();
+            data.append('_csrf', csrf.value);
+            data.append('field', input.dataset.field || '');
+            data.append('profile_file', file);
+            const response = await fetch(uploadUrl, {method: 'POST', body: data});
+            const payload = await response.json();
+            if (!response.ok || typeof payload.text !== 'string') throw new Error(payload.error || 'Could not read that file.');
+            target.value = payload.text;
+            target.dispatchEvent(new Event('input', {bubbles: true}));
+            target.focus();
+            if (status instanceof HTMLElement) status.textContent = 'Field filled. You can edit it before saving.';
+        } catch (exception) {
+            if (status instanceof HTMLElement) status.textContent = exception instanceof Error ? exception.message : 'Could not read that file.';
+        } finally {
+            input.value = '';
+            input.disabled = false;
+        }
+    });
+});
