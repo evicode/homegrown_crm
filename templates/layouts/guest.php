@@ -9,6 +9,7 @@
 <body class="guest-page">
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <main id="main-content" class="guest-card" tabindex="-1">
+    <a class="guest-brand" href="<?= $escape($assetBase) ?>/../"><span class="brand-mark" aria-hidden="true">D</span><span>Dreamsmith<small>Campaign</small></span></a>
     <?php foreach ($flashes as $flash): ?>
         <div class="flash flash--<?= $escape($flash['type']) ?>" role="status"><?= $escape($flash['message']) ?></div>
     <?php endforeach; ?>
