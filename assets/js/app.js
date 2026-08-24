@@ -6,6 +6,7 @@ if (toggle instanceof HTMLButtonElement && navigation instanceof HTMLElement) {
         const open = toggle.getAttribute('aria-expanded') !== 'true';
         toggle.setAttribute('aria-expanded', String(open));
         navigation.toggleAttribute('data-open', open);
+        toggle.closest('.app-sidebar')?.toggleAttribute('data-open', open);
     });
 }
 
