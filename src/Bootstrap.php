@@ -206,6 +206,7 @@ final class Bootstrap
         $router->add('POST', '/account/password', static fn (Request $request): Response => $controller->changePassword($request), 'account.password.update');
         $router->add('GET', '/opportunities', static fn (Request $request): Response => $opportunityController->index($request), 'opportunities.index');
         $router->add('GET', '/work', static fn (): Response => $followUpController->work(), 'work.index');
+        $router->add('GET', '/follow-ups', static fn (Request $request): Response => $followUpController->history($request), 'followups.index');
         $router->add('GET', '/data', static fn (): Response => $dataController->index(), 'data.index');
         $router->add('GET', '/lead-finder', static fn (Request $request): Response => $leadFinderController->index($request), 'lead-finder.index');
         $router->add('GET', '/lead-finder/profile', static fn (): Response => $leadFinderController->profile(), 'lead-finder.profile');

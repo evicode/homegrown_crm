@@ -124,18 +124,18 @@ $test('authentication normalizes and validates owner email', static function () 
 $test('navigation keeps prospects and opportunities reachable when campaign setup is incomplete', static function () use ($assert): void {
     $router = new Router('/workspace');
     foreach ([
-        'dashboard' => '/', 'work.index' => '/work', 'interactions.index' => '/interactions', 'prospects.index' => '/prospects', 'opportunities.index' => '/opportunities',
+        'dashboard' => '/', 'work.index' => '/work', 'followups.index' => '/follow-ups', 'interactions.index' => '/interactions', 'prospects.index' => '/prospects', 'opportunities.index' => '/opportunities',
         'companies.index' => '/companies', 'contacts.index' => '/contacts', 'lead-finder.index' => '/lead-finder', 'lead-finder.profile' => '/lead-finder/profile', 'data.index' => '/data', 'campaign.settings' => '/settings/campaign',
         'integrations.index' => '/integrations',
     ] as $name => $path) {
         $router->add('GET', $path, static fn (): Response => Response::html(''), $name);
     }
     $withoutCampaign = (new NavigationBuilder($router))->build('dashboard', false);
-    $assert($withoutCampaign[3]['url'] === '/workspace/prospects');
-    $assert($withoutCampaign[4]['url'] === '/workspace/opportunities');
+    $assert($withoutCampaign[4]['url'] === '/workspace/prospects');
+    $assert($withoutCampaign[5]['url'] === '/workspace/opportunities');
     $assert(count(array_filter($withoutCampaign, static fn (array $item): bool => $item['current'])) === 1);
     $withCampaign = (new NavigationBuilder($router))->build('prospects.index', true);
-    $assert($withCampaign[3]['url'] === '/workspace/prospects' && $withCampaign[3]['current']);
+    $assert($withCampaign[4]['url'] === '/workspace/prospects' && $withCampaign[4]['current']);
 });
 
 $test('campaign metrics have canonical ordered defaults', static function () use ($assert): void {
