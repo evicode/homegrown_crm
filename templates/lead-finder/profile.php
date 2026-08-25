@@ -24,18 +24,18 @@
         </section>
         <section class="profile-field-card">
             <div class="profile-field-card__header">
-                <div><h2 id="profile-positive-keywords-heading">What the agent should look for</h2><p>Add the signs that make a company more likely to be a good fit.</p></div>
+                <div><h2 id="profile-positive-keywords-heading">What should the agent search for?</h2><p>Add words, phrases, or company characteristics that suggest a company may be a good fit.</p></div>
                 <div class="profile-upload"><div class="profile-list-actions"><a href="<?= $escape($exportUrl) ?>">Export</a><label>Import<input class="visually-hidden" type="file" data-profile-upload data-target="profile-positive-keywords" data-field="positive_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"></label></div><span data-profile-upload-status role="status"></span></div>
             </div>
             <div id="profile-positive-keywords" class="profile-priority-list" data-profile-weight-rows aria-labelledby="profile-positive-keywords-heading">
-                <div class="profile-priority-row profile-priority-row--head" aria-hidden="true"><span>What to look for</span><span>Importance</span><span></span></div>
+                <div class="profile-priority-row profile-priority-row--head" aria-hidden="true"><span>Word, phrase, or characteristic</span><span>Importance</span><span></span></div>
                 <?php $priorityRows=array_map(static fn($term,$weight):array=>['term'=>$term,'weight'=>$weight],array_keys($profile['positive_keywords']),array_values($profile['positive_keywords']));if($priorityRows===[])$priorityRows=[['term'=>'','weight'=>1]];foreach($priorityRows as $row): ?>
                     <div class="profile-priority-row" data-profile-weight-row><input name="positive_keyword[]" value="<?= $escape($row['term']) ?>" maxlength="160" aria-label="What to look for" placeholder="Example: manual workflow"><select name="positive_keyword_weight[]" aria-label="Importance"><?php for($priority=$priorityMinimum;$priority<=$priorityMaximum;$priority++): ?><option value="<?= $priority ?>"<?= (int)$row['weight']===$priority?' selected':'' ?>><?= $priority ?></option><?php endfor; ?></select><button class="profile-priority-row__remove" type="button" data-profile-weight-remove aria-label="Remove this item">×</button></div>
                 <?php endforeach; ?>
             </div>
             <template data-profile-weight-template><div class="profile-priority-row" data-profile-weight-row><input name="positive_keyword[]" maxlength="160" aria-label="What to look for" placeholder="Example: manual workflow"><select name="positive_keyword_weight[]" aria-label="Importance"><?php for($priority=$priorityMinimum;$priority<=$priorityMaximum;$priority++): ?><option value="<?= $priority ?>"<?= $priority===1?' selected':'' ?>><?= $priority ?></option><?php endfor; ?></select><button class="profile-priority-row__remove" type="button" data-profile-weight-remove aria-label="Remove this item">×</button></div></template>
-            <button class="profile-priority-list__add" type="button" data-profile-weight-add>+ Add another sign</button>
-            <p class="field-hint">Importance runs from <?= $escape($priorityMinimum) ?> (small clue) to <?= $escape($priorityMaximum) ?> (decisive). Import and export use <code>what to look for | importance</code>, one item per line.</p>
+            <button class="profile-priority-list__add" type="button" data-profile-weight-add>+ Add another item</button>
+            <p class="field-hint">Importance runs from <?= $escape($priorityMinimum) ?> (small clue) to <?= $escape($priorityMaximum) ?> (decisive). Use one row for each item you want the agent to search for. Import and export use <code>what to look for | importance</code>, one item per line.</p>
         </section>
         <section class="profile-field-card">
             <div class="profile-field-card__header">
