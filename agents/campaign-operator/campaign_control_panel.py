@@ -96,7 +96,9 @@ class CampaignControlPanel(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Campaign Operator Dashboard")
-        self.minsize(840, 700)
+        available_height = max(1, self.winfo_screenheight() - 80)
+        self.minsize(480, min(480, available_height))
+        self.geometry(f"840x{min(760, available_height)}")
         self.query = tk.StringVar()
         self.allow_save = tk.BooleanVar(value=False)
         self.endpoint = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_MCP_URL", "http://127.0.0.1/conversions/mcp"))
@@ -106,8 +108,18 @@ class CampaignControlPanel(tk.Tk):
         self._build()
 
     def _build(self) -> None:
-        frame = tk.Frame(self, padx=20, pady=18)
-        frame.pack(fill="both", expand=True)
+        viewport = tk.Frame(self)
+        viewport.pack(fill="both", expand=True)
+        canvas = tk.Canvas(viewport, highlightthickness=0)
+        scrollbar = tk.Scrollbar(viewport, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        frame = tk.Frame(canvas, padx=20, pady=18)
+        frame_window = canvas.create_window((0, 0), window=frame, anchor="nw")
+        frame.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(frame_window, width=event.width))
+        canvas.bind_all("<MouseWheel>", lambda event: self._scroll_dashboard(canvas, event))
         tk.Label(frame, text="Find companies worth talking to", font=("Segoe UI", 20, "bold")).pack(anchor="w")
         tk.Label(frame, text="Start at step 1 if this is your first time. The dashboard will not create prospects or contact anyone without your confirmation.", wraplength=760, justify="left").pack(anchor="w", pady=(3, 14))
 
@@ -140,6 +152,14 @@ class CampaignControlPanel(tk.Tk):
         self.output = scrolledtext.ScrolledText(frame, height=14, wrap="word", state="disabled")
         self.output.pack(fill="both", expand=True, pady=(3, 0))
         self.append("Welcome. " + ("Start with step 2 to describe the companies you want to find." if setup_ready else "Start with step 1 to connect this dashboard to your CRM."))
+
+    def _scroll_dashboard(self, canvas: tk.Canvas, event: tk.Event) -> None:
+        if event.widget.winfo_toplevel() is not self:
+            return
+        if isinstance(event.widget, (tk.Entry, tk.Text, tk.Spinbox)):
+            return
+        if event.delta:
+            canvas.yview_scroll(int(-event.delta / 120), "units")
 
     def step(self, parent: tk.Widget, number: str, title: str, detail: str, button: str, command: object, status: str | None = None) -> None:
         row = tk.Frame(parent, padx=10, pady=8, highlightthickness=1, highlightbackground="#d7dce5")
