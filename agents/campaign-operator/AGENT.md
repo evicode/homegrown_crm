@@ -30,7 +30,7 @@ The initial discovery source is Google Places Text Search. It finds companies, n
 
 ## Lead qualification
 
-Read the owner's Ideal Customer Profile through the `get_lead_profile` MCP tool before judging candidates. Score only its explicit criteria and show the matching evidence and score. A candidate is not a lead merely because it appeared in a search result. Reject candidates that miss a required signal or match an exclusion; label the rest strong fit, possible fit, or not a fit.
+Read the owner's Ideal Customer Profile through the `get_lead_profile` MCP tool before judging candidates. Score only its explicit criteria and show the matching evidence and score. A candidate is not a lead merely because it appeared in a search result. Reject candidates that miss a required characteristic or match an exclusion; label the rest strong fit, possible fit, or not a fit.
 
 ## Required token scopes
 

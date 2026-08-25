@@ -38,6 +38,7 @@ use Dreamsmith\Campaign\Support\FrozenClock;
 use Dreamsmith\Campaign\Support\Logger;
 use Dreamsmith\Campaign\Support\View;
 use Dreamsmith\Campaign\LeadFinder\ProfileFieldUpload;
+use Dreamsmith\Campaign\LeadFinder\LeadCandidateService;
 use Dreamsmith\Campaign\Data\DataService;
 use Dreamsmith\Campaign\FollowUp\FollowUpService;
 use Dreamsmith\Campaign\Interaction\InteractionInput;
@@ -441,6 +442,30 @@ if (is_string($testDsn) && $testDsn !== '') {
             if ($contactId) $pdo->prepare('DELETE FROM contacts WHERE id=:id')->execute(['id' => $contactId]);
             if ($companyId) $pdo->prepare('DELETE FROM companies WHERE id=:id')->execute(['id' => $companyId]);
             if ($campaignId) { $pdo->prepare('UPDATE application_settings SET active_campaign_id=:active,owner_timezone=:timezone,version=:version WHERE id=1')->execute(['active' => $settings['active_campaign_id'], 'timezone' => $settings['owner_timezone'], 'version' => $settings['version']]); $pdo->prepare('DELETE FROM campaign_targets WHERE campaign_id=:id')->execute(['id' => $campaignId]); $pdo->prepare('DELETE FROM campaigns WHERE id=:id')->execute(['id' => $campaignId]); }
+            $pdo->prepare('DELETE FROM users WHERE id=:id')->execute(['id' => $ownerId]);
+        }
+    });
+
+    $test('repeated lead candidates do not reopen an owner-reviewed queue item', static function () use ($assert, $testDsn): void {
+        $database = new Database(['dsn' => $testDsn, 'user' => getenv('TEST_DB_USER') ?: '', 'password' => getenv('TEST_DB_PASSWORD') ?: '']);
+        $pdo = $database->pdo(); (new MigrationRunner($pdo, dirname(__DIR__) . '/database/migrations'))->migrate();
+        $suffix = bin2hex(random_bytes(5)); $correlationId = 'test-lead-candidate-' . $suffix;
+        $owner = $pdo->prepare('INSERT INTO users(email,password_hash,password_changed_at) VALUES(:email,:hash,UTC_TIMESTAMP(6))');
+        $owner->execute(['email' => "lead-candidate-{$suffix}@example.test", 'hash' => password_hash('not-used', PASSWORD_DEFAULT)]); $ownerId = (int) $pdo->lastInsertId();
+        $candidateId = 0;
+        try {
+            $service = new LeadCandidateService($database, new AuditWriter(), new FrozenClock(new DateTimeImmutable('2026-08-19T12:00:00Z')));
+            $actor = new ActorContext('owner', ownerUserId: $ownerId, correlationId: $correlationId);
+            $input = ['source' => 'google_places', 'source_id' => "place-{$suffix}", 'name' => 'Repeat Safe Company', 'fit' => 'strong_fit', 'score' => 9, 'evidence' => ['Matches the stated characteristics.']];
+            $first = $service->propose($input, $actor); $candidateId = (int) $first['id'];
+            $pdo->prepare("UPDATE lead_candidates SET status='dismissed' WHERE id=:id")->execute(['id' => $candidateId]);
+            $second = $service->propose($input, $actor);
+            $row = $pdo->prepare('SELECT status FROM lead_candidates WHERE id=:id'); $row->execute(['id' => $candidateId]);
+            $assert($first['already_exists'] === false && $second['already_exists'] === true);
+            $assert((int) $second['id'] === $candidateId && $second['status'] === 'dismissed' && $row->fetchColumn() === 'dismissed');
+        } finally {
+            if ($candidateId) $pdo->prepare('DELETE FROM lead_candidates WHERE id=:id')->execute(['id' => $candidateId]);
+            $pdo->prepare('DELETE FROM audit_events WHERE correlation_id=:id')->execute(['id' => $correlationId]);
             $pdo->prepare('DELETE FROM users WHERE id=:id')->execute(['id' => $ownerId]);
         }
     });

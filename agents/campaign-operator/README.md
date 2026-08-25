@@ -39,11 +39,11 @@ $env:GOOGLE_PLACES_API_KEY = 'your-server-side-key'
 php agents/campaign-operator/run.php find 'custom software development companies in Portland, Oregon'
 ```
 
-Before the first search, open **Lead Finder → Ideal customer profile** in the CRM and define the required signals, positive signals and points, exclusions, locations, and score thresholds. The agent reads that profile through MCP; no local JSON file is used.
+Before the first search, open **Lead Finder → Ideal customer profile** in the CRM and define required characteristics, scored characteristics and their importance, exclusions, locations, and score thresholds. The agent reads that profile through MCP; no local JSON file is used.
 
-`find` searches Google Places, checks each company through the CRM MCP `search_companies` tool, fetches the public homepage when available, and prints a review queue. Each candidate contains the transparent score, matching evidence, fit label, and whether it is already in your CRM.
+`find` searches Google Places, checks names and website domains against CRM companies and checks active prospects, fetches the public homepage when available, and prints a readable review queue. A repeated Google Places result cannot reopen or overwrite a previously reviewed queue item. Add `--json` only when another program needs the full machine-readable result.
 
-Add `--save` to submit non-duplicate candidates to the CRM **Lead Finder** queue through MCP. This needs the `lead_candidates:write` scope, but it still does not create a company or prospect.
+Add `--save` to submit qualifying, non-duplicate candidates to the CRM **Lead Finder** queue through MCP. This needs the `lead_candidates:write` scope, but it still does not create a company or prospect.
 
 ## Commands
 

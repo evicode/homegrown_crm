@@ -109,6 +109,72 @@ function publicWebsiteText(?string $url): string
     return strtolower(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(substr($html, 0, 60000)), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? ''));
 }
 
+function normalizedText(?string $value): string
+{
+    $value = strtolower(trim((string) $value));
+    return preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
+}
+
+function websiteDomain(?string $url): string
+{
+    $host = strtolower((string) (parse_url((string) $url, PHP_URL_HOST) ?: ''));
+    return preg_replace('/^www\./', '', $host) ?? '';
+}
+
+/** @param list<array<string,mixed>> $companies @param list<array<string,mixed>> $prospects @return array<string,mixed> */
+function duplicateCheck(array $candidate, array $companies, array $prospects): array
+{
+    $name = normalizedText($candidate['name'] ?? null);
+    $domain = websiteDomain($candidate['website'] ?? null);
+    $address = normalizedText($candidate['address'] ?? null);
+    $companyMatches = [];
+    foreach ($companies as $company) {
+        if (!is_array($company)) continue;
+        $sameName = $name !== '' && normalizedText($company['name'] ?? null) === $name;
+        $sameDomain = $domain !== '' && websiteDomain($company['website'] ?? null) === $domain;
+        $sameAddress = $address !== '' && normalizedText($company['location'] ?? null) === $address;
+        if ($sameName || $sameDomain || $sameAddress) $companyMatches[] = ['id' => (int) ($company['id'] ?? 0), 'by' => $sameDomain ? 'website' : ($sameAddress ? 'address' : 'name')];
+    }
+    $prospectMatches = [];
+    foreach ($prospects as $prospect) {
+        if (!is_array($prospect) || $name === '' || normalizedText($prospect['company_name'] ?? null) !== $name) continue;
+        $prospectMatches[] = (int) ($prospect['id'] ?? 0);
+    }
+    return [
+        'already_in_crm' => $companyMatches !== [] || $prospectMatches !== [],
+        'matching_companies' => $companyMatches,
+        'matching_prospect_ids' => array_values(array_filter($prospectMatches)),
+    ];
+}
+
+/** @param array<string,mixed> $result */
+function printLeadReview(array $result): void
+{
+    $candidates = $result['candidates'] ?? [];
+    $qualified = array_filter($candidates, static fn (array $candidate): bool => ($candidate['fit'] ?? 'not_fit') !== 'not_fit');
+    echo "LEAD REVIEW\n";
+    echo 'Search: ' . ($result['query'] ?? '') . "\n";
+    echo 'Found: ' . count($candidates) . ' | Matches: ' . count($qualified) . ' | Submitted: ' . ($result['saved_count'] ?? 0) . '/' . ($result['save_limit'] ?? 0) . "\n\n";
+    foreach ($candidates as $number => $candidate) {
+        $fit = match ($candidate['fit'] ?? 'not_fit') { 'strong_fit' => 'STRONG MATCH', 'possible_fit' => 'POSSIBLE MATCH', default => 'NOT A MATCH' };
+        echo sprintf('%02d. %s — %d importance points%s', $number + 1, $fit, (int) ($candidate['score'] ?? 0), !empty($candidate['already_in_crm']) ? ' — ALREADY IN CRM' : '') . "\n";
+        echo '    ' . ($candidate['name'] ?? 'Unnamed company') . "\n";
+        $details = array_filter([$candidate['category'] ?? null, $candidate['address'] ?? null, $candidate['website'] ?? null], 'is_string');
+        if ($details !== []) echo '    ' . implode(' · ', $details) . "\n";
+        echo '    Why: ' . implode('; ', $candidate['reasons'] ?? []) . "\n";
+        if (!empty($candidate['matching_companies'])) echo '    Existing company matches: ' . implode(', ', array_map(static fn (array $match): string => '#' . $match['id'] . ' (' . $match['by'] . ')', $candidate['matching_companies'])) . "\n";
+        if (!empty($candidate['matching_prospect_ids'])) echo '    Existing prospects: ' . implode(', ', array_map(static fn (int $id): string => '#' . $id, $candidate['matching_prospect_ids'])) . "\n";
+        $submission = $candidate['queue_submission'] ?? null;
+        if (is_array($submission)) {
+            $queuedCandidate = $submission['candidate'] ?? [];
+            if (is_array($queuedCandidate) && !empty($queuedCandidate['already_exists'])) echo '    Queue: already present (#' . ($queuedCandidate['id'] ?? '?') . ', ' . ($queuedCandidate['status'] ?? 'unknown') . ")\n";
+            elseif (!empty($submission['skipped'])) echo '    Queue: ' . $submission['skipped'] . "\n";
+            elseif (is_array($queuedCandidate) && isset($queuedCandidate['id'])) echo '    Queue: submitted (#' . $queuedCandidate['id'] . ")\n";
+        }
+        echo "\n";
+    }
+}
+
 /** @param array<string,mixed> $candidate @param array<string,mixed> $profile @return array<string,mixed> */
 function qualify(array $candidate, array $profile): array
 {
@@ -121,8 +187,8 @@ function qualify(array $candidate, array $profile): array
     }
     $required = array_values(array_filter($profile['required_any'], 'is_string'));
     $requiredMatches = array_values(array_filter($required, $matches));
-    if ($required !== [] && $requiredMatches === []) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ['No required signal matched.'], 'website_checked' => $websiteText !== ''];
-    foreach ($requiredMatches as $term) $reasons[] = "Required signal: {$term}";
+    if ($required !== [] && $requiredMatches === []) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ['No required characteristic matched.'], 'website_checked' => $websiteText !== ''];
+    foreach ($requiredMatches as $term) $reasons[] = "Required characteristic: {$term}";
     foreach ($profile['positive_keywords'] as $term => $weight) {
         if (is_string($term) && $matches($term)) { $points = max(1, (int) $weight); $score += $points; $reasons[] = "Matched {$term} (+{$points})"; }
     }
@@ -166,13 +232,18 @@ try {
             $name = trim((string) ($place['displayName']['text'] ?? ''));
             if ($name === '') continue;
             $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
-            $matches = array_values(array_filter($existing['items'] ?? [], static fn (array $company): bool => strcasecmp((string) ($company['name'] ?? ''), $name) === 0));
+            $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', ['query' => $name]));
+            $domain = websiteDomain($place['websiteUri'] ?? null);
+            if ($domain !== '') {
+                $domainCompanies = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $domain]));
+                $existing['items'] = array_merge($existing['items'] ?? [], $domainCompanies['items'] ?? []);
+            }
             $candidate = [
                 'source' => 'google_places', 'source_id' => $place['id'] ?? null, 'name' => $name,
                 'website' => $place['websiteUri'] ?? null, 'address' => $place['formattedAddress'] ?? null,
                 'category' => $place['primaryType'] ?? null, 'business_status' => $place['businessStatus'] ?? null,
-                'already_in_crm' => $matches !== [], 'matching_company_ids' => array_column($matches, 'id'),
             ];
+            $candidate += duplicateCheck($candidate, $existing['items'] ?? [], $prospects['items'] ?? []);
             $candidate += qualify($candidate, $profile);
             if ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount < $maxSaves) {
                 $saved = callTool($endpoint, $token, $sessionId, $id++, 'propose_lead_candidate', [
@@ -188,7 +259,9 @@ try {
             }
             $candidates[] = $candidate;
         }
-        echo json_encode(['query' => $query, 'profile' => $profile['description'] ?? null, 'saved_count' => $savedCount, 'save_limit' => $maxSaves, 'candidates' => $candidates], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        $result = ['query' => $query, 'profile' => $profile['description'] ?? null, 'saved_count' => $savedCount, 'save_limit' => $maxSaves, 'candidates' => $candidates];
+        if (in_array('--json', $argv, true)) echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        else printLeadReview($result);
         exit(0);
     }
     if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, find, discover, or call <tool> <json-arguments>.');
