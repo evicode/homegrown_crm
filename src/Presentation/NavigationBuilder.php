@@ -22,6 +22,7 @@ final class NavigationBuilder
             ['prospects.index', 'prospects.index', 'Prospects', 'Customers'],
             ['opportunities.index', 'opportunities.index', 'Opportunities', 'Customers'],
             ['companies.index', 'companies.index', 'Companies', 'Customers'],
+            ['contacts.index', 'contacts.index', 'Contacts', 'Customers'],
             ['lead-finder.index', 'lead-finder.index', 'Lead Finder', 'Growth'],
             ['lead-finder.profile', 'lead-finder.profile', 'Ideal customer profile', 'Growth'],
             ['data.index', 'data.index', 'Data tools', 'Administration'],

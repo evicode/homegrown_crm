@@ -63,14 +63,25 @@ final class RecordRepository
     }
 
     /** @return list<array<string,mixed>> */
-    public function contacts(string $text = '', int $limit = 25, int $offset = 0): array
+    public function contacts(bool $archived = false, string $text = '', string $sort = 'name', string $direction = 'asc', int $limit = 25, int $offset = 0): array
     {
-        $where = 'ct.archived_at IS NULL'; $params = [];
+        $where = 'ct.archived_at IS ' . ($archived ? 'NOT NULL' : 'NULL'); $params = [];
         if ($text !== '') { $where .= " AND (ct.first_name LIKE :q OR ct.last_name LIKE :q OR ct.email LIKE :q OR ct.role LIKE :q OR c.name LIKE :q)"; $params['q'] = '%' . $text . '%'; }
-        $statement = $this->pdo->prepare('SELECT ct.*,c.name company_name FROM contacts ct LEFT JOIN companies c ON c.id=ct.company_id WHERE ' . $where . ' ORDER BY ct.last_name,ct.first_name,ct.id LIMIT :limit OFFSET :offset');
+        $columns = ['name' => 'ct.last_name', 'company' => 'c.name', 'role' => 'ct.role', 'updated' => 'ct.updated_at'];
+        $column = $columns[$sort] ?? $columns['name']; $order = $direction === 'desc' ? 'DESC' : 'ASC';
+        $statement = $this->pdo->prepare('SELECT ct.*,c.name company_name,c.archived_at company_archived_at FROM contacts ct LEFT JOIN companies c ON c.id=ct.company_id WHERE ' . $where . ' ORDER BY ' . $column . ' ' . $order . ', ct.first_name ' . $order . ', ct.id ' . $order . ' LIMIT :limit OFFSET :offset');
         foreach ($params as $key => $value) $statement->bindValue(':' . $key, $value);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT); $statement->bindValue(':offset', $offset, PDO::PARAM_INT); $statement->execute();
         return $statement->fetchAll();
+    }
+
+    public function contactCount(bool $archived = false, string $text = ''): int
+    {
+        $where = 'ct.archived_at IS ' . ($archived ? 'NOT NULL' : 'NULL'); $params = [];
+        if ($text !== '') { $where .= " AND (ct.first_name LIKE :q OR ct.last_name LIKE :q OR ct.email LIKE :q OR ct.role LIKE :q OR c.name LIKE :q)"; $params['q'] = '%' . $text . '%'; }
+        $statement = $this->pdo->prepare('SELECT COUNT(*) FROM contacts ct LEFT JOIN companies c ON c.id=ct.company_id WHERE ' . $where);
+        $statement->execute($params);
+        return (int) $statement->fetchColumn();
     }
 
     /** @return array<string,mixed>|null */

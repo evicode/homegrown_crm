@@ -252,6 +252,7 @@ final class Bootstrap
         $router->add('POST', '/companies/{id}/update', static fn (Request $request, array $parameters): Response => $recordController->saveCompany($request, (int) $parameters['id']), 'companies.update');
         $router->add('POST', '/companies/{id}/archive', static fn (Request $request, array $parameters): Response => $recordController->toggleCompany($request, (int) $parameters['id'], false), 'companies.archive');
         $router->add('POST', '/companies/{id}/restore', static fn (Request $request, array $parameters): Response => $recordController->toggleCompany($request, (int) $parameters['id'], true), 'companies.restore');
+        $router->add('GET', '/contacts', static fn (Request $request): Response => $recordController->contacts($request), 'contacts.index');
         $router->add('GET', '/contacts/new', static fn (Request $request): Response => $recordController->contactForm(preselectedCompanyId: isset($request->query['company_id']) ? (int) $request->query['company_id'] : null), 'contacts.new');
         $router->add('POST', '/contacts', static fn (Request $request): Response => $recordController->saveContact($request), 'contacts.create');
         $router->add('POST', '/records/quick-contacts', static fn (Request $request): Response => $recordController->quickCreateContact($request), 'records.quick-contacts');

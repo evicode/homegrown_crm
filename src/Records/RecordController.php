@@ -47,6 +47,26 @@ final class RecordController
         ], $user, 'Companies', 'companies.index');
     }
 
+    public function contacts(Request $request): Response
+    {
+        $user = $this->user(); if ($user instanceof Response) return $user;
+        $archived = ($request->query['archived'] ?? null) === '1';
+        $list = \Dreamsmith\Campaign\Reporting\ListQuery::from($request->query, ['name', 'company', 'role', 'updated'], 'name');
+        $repository = new RecordRepository($this->database->pdo());
+        $count = $repository->contactCount($archived, $list->text);
+        return $this->shell->owner('records/contacts.php', [
+            'contacts' => $repository->contacts($archived, $list->text, $list->sort, $list->direction, $list->size, $list->offset()),
+            'archived' => $archived,
+            'filters' => ['q' => $list->text, 'sort' => $list->sort, 'direction' => $list->direction, 'archived' => $archived ? '1' : ''],
+            'count' => $count, 'page' => $list->page, 'pages' => max(1, (int) ceil($count / $list->size)),
+            'indexUrl' => $this->router->url('contacts.index'),
+            'newUrl' => $this->router->url('contacts.new'),
+            'activeUrl' => $this->router->url('contacts.index'),
+            'archivedUrl' => $this->router->url('contacts.index') . '?archived=1',
+            'editUrl' => fn (int $id): string => $this->router->url('contacts.edit', ['id' => $id]),
+        ], $user, 'Contacts', 'contacts.index');
+    }
+
     public function company(int $id): Response
     {
         $user = $this->user(); if ($user instanceof Response) return $user;
@@ -131,11 +151,11 @@ final class RecordController
         return $this->shell->owner('records/contact-form.php',[
             'contact'=>$contact,'values'=>$values,'errors'=>$errors,'duplicates'=>$duplicates,'companies'=>$repository->activeCompanies(),'csrfToken'=>$this->csrf->token(),
             'actionUrl'=>$id===null?$this->router->url('contacts.create'):$this->router->url('contacts.update',['id'=>$id]),
-            'cancelUrl'=>$contact!==null&&$contact['company_id']!==null?$this->router->url('companies.show',['id'=>$contact['company_id']]):$this->router->url('companies.index'),
+            'cancelUrl'=>$contact!==null&&$contact['company_id']!==null?$this->router->url('companies.show',['id'=>$contact['company_id']]):$this->router->url('contacts.index'),
             'archiveUrl'=>$id===null?null:$this->router->url('contacts.archive',['id'=>$id]),
             'restoreUrl'=>$id===null?null:$this->router->url('contacts.restore',['id'=>$id]),
             'archivedCompanyName'=>$contact!==null&&$contact['company_archived_at']!==null?$contact['company_name']:null,
-        ],$user,$id===null?'New contact':'Edit contact','companies.index',$status);
+        ],$user,$id===null?'New contact':'Edit contact','contacts.index',$status);
     }
 
     public function saveContact(Request $request,?int $id=null):Response
