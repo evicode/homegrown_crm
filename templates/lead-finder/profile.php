@@ -58,8 +58,8 @@
     </div>
     <p class="lead-profile-form__note">Imports accept plain text, CSV/TSV, Excel (.xlsx), and Word (.docx), up to 2 MB. Imported files are discarded after their text fills the field.</p>
     <section class="profile-score-card">
-        <div><h2>How strict should the match be?</h2><p>Use the total importance score from “What the agent should look for.”</p></div>
-        <div class="field-grid"><label>Minimum score<input type="number" name="minimum_score" min="1" max="100" value="<?= $escape($profile['minimum_score']) ?>" required></label><label>Strong-fit score<input type="number" name="strong_fit_score" min="1" max="100" value="<?= $escape($profile['strong_fit_score']) ?>" required></label></div>
+        <div><h2>How should the agent judge a match?</h2><p>Each matching characteristic adds its Importance number to a company’s total. These two numbers decide which companies the agent keeps and which it marks as especially promising.</p></div>
+        <div class="field-grid"><label>Minimum total importance<input type="number" name="minimum_score" min="1" max="100" value="<?= $escape($profile['minimum_score']) ?>" required><span class="field-hint">Keep a company when its total reaches this number.</span></label><label>Strong-fit total importance<input type="number" name="strong_fit_score" min="1" max="100" value="<?= $escape($profile['strong_fit_score']) ?>" required><span class="field-hint">Mark a company as a strong fit when its total reaches this number.</span></label></div>
     </section>
     <div class="form-actions"><button>Save ideal customer profile</button><a href="<?= $escape($indexUrl) ?>">Back to Lead Finder</a></div>
 </form>
