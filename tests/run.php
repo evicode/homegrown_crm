@@ -45,6 +45,7 @@ use Dreamsmith\Campaign\Interaction\InteractionService;
 use Dreamsmith\Campaign\Opportunity\OpportunityRepository;
 use Dreamsmith\Campaign\Opportunity\OpportunityService;
 use Dreamsmith\Campaign\Prospect\ProspectRepository;
+use Dreamsmith\Campaign\Prospect\ProspectService;
 use Dreamsmith\Campaign\Reporting\CampaignReportingService;
 use Dreamsmith\Campaign\Security\SessionManager;
 
