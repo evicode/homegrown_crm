@@ -52,6 +52,15 @@ composer lint
 composer test
 ```
 
-Unit tests require no database. To also exercise migrations and rollback behavior, provide `TEST_DB_DSN`, `TEST_DB_USER`, and `TEST_DB_PASSWORD` for a disposable empty database before running `composer test`. Tests never infer or reuse production database settings.
+Unit tests require no database. To also exercise migrations, rollback behavior, and the full campaign workflow, provide `TEST_DB_DSN`, `TEST_DB_USER`, and `TEST_DB_PASSWORD` for a disposable empty database before running `composer test`. Tests never infer or reuse production database settings.
+
+```powershell
+$env:TEST_DB_DSN = 'mysql:host=127.0.0.1;port=3306;dbname=dreamsmith_campaign_test;charset=utf8mb4'
+$env:TEST_DB_USER = 'test_user'
+$env:TEST_DB_PASSWORD = 'replace-with-the-test-database-password'
+composer test
+```
+
+Use a database named specifically for tests, with a database user limited to that database. The test suite creates isolated records, cleans them up afterward, and never reads `DB_DSN`, `DB_USER`, or `DB_PASSWORD` as a fallback.
 
 After deployment, `GET /health/live` confirms the PHP process can serve requests. `GET /health/ready` returns success only when the configured database is reachable and the foundation migration is present.

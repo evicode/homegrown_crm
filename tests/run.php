@@ -38,6 +38,15 @@ use Dreamsmith\Campaign\Support\FrozenClock;
 use Dreamsmith\Campaign\Support\Logger;
 use Dreamsmith\Campaign\Support\View;
 use Dreamsmith\Campaign\LeadFinder\ProfileFieldUpload;
+use Dreamsmith\Campaign\Data\DataService;
+use Dreamsmith\Campaign\FollowUp\FollowUpService;
+use Dreamsmith\Campaign\Interaction\InteractionInput;
+use Dreamsmith\Campaign\Interaction\InteractionService;
+use Dreamsmith\Campaign\Opportunity\OpportunityRepository;
+use Dreamsmith\Campaign\Opportunity\OpportunityService;
+use Dreamsmith\Campaign\Prospect\ProspectRepository;
+use Dreamsmith\Campaign\Reporting\CampaignReportingService;
+use Dreamsmith\Campaign\Security\SessionManager;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -371,6 +380,67 @@ if (is_string($testDsn) && $testDsn !== '') {
             foreach ($contactIds as $contactId) $pdo->prepare('DELETE FROM contacts WHERE id=:id')->execute(['id'=>$contactId]);
             $pdo->prepare('DELETE FROM companies WHERE id=:id')->execute(['id'=>$companyId]);
             $pdo->exec("DELETE FROM audit_events WHERE correlation_id LIKE 'test-record-%'");
+        }
+    });
+
+    $test('full campaign workflow persists, reports, and exports one consistent history', static function () use ($assert, $testDsn): void {
+        $database = new Database(['dsn' => $testDsn, 'user' => getenv('TEST_DB_USER') ?: '', 'password' => getenv('TEST_DB_PASSWORD') ?: '']);
+        $pdo = $database->pdo(); (new MigrationRunner($pdo, dirname(__DIR__) . '/database/migrations'))->migrate();
+        $sales = require dirname(__DIR__) . '/config/sales.php';
+        $clock = new FrozenClock(new DateTimeImmutable('2026-08-19T12:00:00Z'));
+        $suffix = bin2hex(random_bytes(5)); $cid = 'test-full-workflow-' . $suffix;
+        $settings = (new CampaignRepository($pdo))->settings();
+        $owner = $pdo->prepare('INSERT INTO users(email,password_hash,password_changed_at) VALUES(:email,:hash,UTC_TIMESTAMP(6))');
+        $owner->execute(['email' => "workflow-{$suffix}@example.test", 'hash' => password_hash('not-used', PASSWORD_DEFAULT)]); $ownerId = (int) $pdo->lastInsertId();
+        $campaignId = $companyId = $contactId = $prospectId = $interactionId = $followUpId = $opportunityId = 0;
+        try {
+            $campaignService = new CampaignService($database, new AuditWriter(), $clock);
+            $campaignId = $campaignService->create(new CampaignInput('Workflow ' . $suffix, '2026-08-01', '2026-08-31', CampaignMetrics::defaults()), $ownerId, $cid . '-campaign');
+            $campaignService->activate($campaignId, (int) $settings['version'], $ownerId, $cid . '-activate');
+            $records = new RecordService($database, new AuditWriter(), $clock);
+            [$company] = CompanyInput::fromArray(['name' => 'Workflow Company ' . $suffix, 'website' => "https://{$suffix}.example.test"]);
+            $companyId = $records->createCompany($company, false, $ownerId, $cid . '-company');
+            [$contact] = ContactInput::fromArray(['company_id' => $companyId, 'first_name' => 'Workflow', 'last_name' => 'Contact', 'email' => "{$suffix}@example.test"]);
+            $contactId = $records->createContact($contact, false, $ownerId, $cid . '-contact');
+            $prospects = new ProspectService($database, new AuditWriter(), $clock, new ProspectRules($sales));
+            $prospectId = $prospects->create(new ProspectInput($companyId, $contactId, 'direct', 'Integration test', 'A visible modernization need.', 'Manual work is slowing delivery.', 'Qualified in the end-to-end test.', true, true, true, true), $ownerId, $cid . '-prospect');
+            $signalId = (int) $pdo->query("SELECT id FROM signals WHERE signal_key='legacy_rebuild'")->fetchColumn();
+            $prospects->addSignal($prospectId, $signalId, 'The public site describes a legacy workflow.', '2026-08-18', 1, $ownerId, $cid . '-signal');
+            $prospects->transition($prospectId, 'ready_to_contact', 'Research is complete.', 2, $ownerId, $cid . '-ready');
+            $interaction = new InteractionInput($contactId, 'email', 'outbound', new DateTimeImmutable('2026-08-19T11:00:00Z'), 'Personalized introduction.', 'attempted_no_response', true, false);
+            $interactionId = (new InteractionService($database, new AuditWriter(), $clock))->record($prospectId, $interaction, 3, $ownerId, $cid . '-interaction');
+            $followUpId = (new FollowUpService($database, new AuditWriter(), $clock))->schedule($prospectId, 'Call to discuss the modernization need.', new DateTimeImmutable('2026-08-21T17:00:00Z'), 4, $ownerId, $cid . '-follow-up');
+            $prospects->transition($prospectId, 'interested', 'They asked to discuss the need.', 4, $ownerId, $cid . '-interested');
+            $prospects->transition($prospectId, 'conversation', 'They agreed to a call.', 5, $ownerId, $cid . '-conversation');
+            $prospects->transition($prospectId, 'qualified', 'Problem, timing, buyer, and budget confirmed.', 6, $ownerId, $cid . '-qualified');
+            $opportunities = new OpportunityService($database, new AuditWriter(), $clock, $sales);
+            $opportunityId = $opportunities->create($prospectId, ['offer_key' => 'discovery', 'value_amount' => '7500.00', 'expected_close_on' => '2026-08-30', 'attach_follow_up' => '1'], 7, $ownerId, $cid . '-opportunity');
+            $opportunities->transition($opportunityId, 'discovery_offered', 'Discovery outline sent.', 1, 'retain', $ownerId, $cid . '-offer');
+            $opportunities->transition($opportunityId, 'proposal_sent', 'Proposal sent.', 2, 'retain', $ownerId, $cid . '-proposal');
+            $opportunities->transition($opportunityId, 'won', 'Accepted.', 3, 'complete', $ownerId, $cid . '-won');
+
+            $prospect = (new ProspectRepository($pdo))->find($prospectId); $opportunity = (new OpportunityRepository($pdo))->find($opportunityId);
+            $followUp = $pdo->query("SELECT status,opportunity_id FROM follow_ups WHERE id={$followUpId}")->fetch();
+            $assert($prospect['status'] === 'qualified' && $prospect['last_contact_at'] !== null);
+            $assert($opportunity['stage'] === 'won' && (int) $followUp['opportunity_id'] === $opportunityId && $followUp['status'] === 'completed');
+            $report = (new CampaignReportingService($pdo))->dashboard((new CampaignRepository($pdo))->find($campaignId), 'America/Los_Angeles');
+            $assert($report['metrics']['selected_prospects'] === 1 && $report['metrics']['personalized_contacts'] === 1 && $report['metrics']['sales_conversations'] === 1);
+            $assert($report['metrics']['qualified_opportunities'] === 1 && $report['metrics']['offers_sent'] === 1 && $report['metrics']['contracts_won'] === 1);
+            $exports = new DataService($database, new SessionManager('test-workflow-' . $suffix, '/', false), $records, $prospects, new InteractionService($database, new AuditWriter(), $clock), new FollowUpService($database, new AuditWriter(), $clock), $opportunities, $clock, $sales, 'test-signing-key');
+            $export = $exports->export('prospects');
+            $assert(str_contains($export['body'], 'Workflow Company ' . $suffix) && str_starts_with($export['body'], 'id,campaign_id,'));
+        } finally {
+            $pdo->prepare('DELETE FROM audit_events WHERE correlation_id LIKE :cid')->execute(['cid' => $cid . '%']);
+            if ($opportunityId) $pdo->prepare('DELETE FROM opportunity_stage_events WHERE opportunity_id=:id')->execute(['id' => $opportunityId]);
+            if ($followUpId) $pdo->prepare('DELETE FROM follow_ups WHERE id=:id')->execute(['id' => $followUpId]);
+            if ($opportunityId) $pdo->prepare('DELETE FROM opportunities WHERE id=:id')->execute(['id' => $opportunityId]);
+            if ($prospectId) { $pdo->prepare('DELETE FROM prospect_status_events WHERE prospect_id=:id')->execute(['id' => $prospectId]); $pdo->prepare('DELETE FROM prospect_signals WHERE prospect_id=:id')->execute(['id' => $prospectId]); }
+            if ($interactionId) $pdo->prepare('DELETE FROM interactions WHERE id=:id')->execute(['id' => $interactionId]);
+            if ($prospectId) $pdo->prepare('DELETE FROM prospects WHERE id=:id')->execute(['id' => $prospectId]);
+            if ($contactId) $pdo->prepare('DELETE FROM contacts WHERE id=:id')->execute(['id' => $contactId]);
+            if ($companyId) $pdo->prepare('DELETE FROM companies WHERE id=:id')->execute(['id' => $companyId]);
+            if ($campaignId) { $pdo->prepare('UPDATE application_settings SET active_campaign_id=:active,owner_timezone=:timezone,version=:version WHERE id=1')->execute(['active' => $settings['active_campaign_id'], 'timezone' => $settings['owner_timezone'], 'version' => $settings['version']]); $pdo->prepare('DELETE FROM campaign_targets WHERE campaign_id=:id')->execute(['id' => $campaignId]); $pdo->prepare('DELETE FROM campaigns WHERE id=:id')->execute(['id' => $campaignId]); }
+            $pdo->prepare('DELETE FROM users WHERE id=:id')->execute(['id' => $ownerId]);
         }
     });
 }
