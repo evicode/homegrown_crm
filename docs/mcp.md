@@ -7,6 +7,7 @@ Send `Authorization: Bearer YOUR_TOKEN`, `Content-Type: application/json`, and M
 The initial MCP surface contains:
 
 - `get_active_campaign` (`campaign:read`)
+- `list_campaigns`, `get_campaign` (`campaign:read`)
 - `get_campaign_report` (`reports:read`)
 - `search_companies`, `get_company` (`companies:read`)
 - `search_contacts`, `get_contact` (`contacts:read`)

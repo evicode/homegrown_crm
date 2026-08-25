@@ -4,6 +4,7 @@ It deliberately exposes a fixed command set rather than a general terminal.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -12,6 +13,7 @@ import tkinter as tk
 import webbrowser
 from pathlib import Path
 from tkinter import messagebox, scrolledtext
+from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
@@ -19,6 +21,7 @@ RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
 CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY")
+LOCAL_SETTING_KEYS = CONNECTION_KEYS + ("CAMPAIGN_OPERATOR_CAMPAIGN_ID",)
 
 
 def load_local_environment(path: Path = AGENT_DIR / ".env") -> None:
@@ -46,13 +49,13 @@ PHP = os.environ.get("CAMPAIGN_OPERATOR_PHP", "php")
 def save_local_environment(values: dict[str, str], path: Path = ENV_FILE) -> None:
     """Save dashboard connection settings while retaining unrelated local options."""
     for key, value in values.items():
-        if key not in CONNECTION_KEYS or "\r" in value or "\n" in value:
+        if key not in LOCAL_SETTING_KEYS or "\r" in value or "\n" in value:
             raise ValueError("Connection settings must be single-line values.")
     existing = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
-    retained = [line for line in existing if not any(line.strip().startswith(key + "=") for key in CONNECTION_KEYS)]
+    retained = [line for line in existing if not any(line.strip().startswith(key + "=") for key in values)]
     while retained and not retained[-1].strip():
         retained.pop()
-    retained.extend(f"{key}={values.get(key, '')}" for key in CONNECTION_KEYS)
+    retained.extend(f"{key}={value}" for key, value in values.items())
     path.write_text("\n".join(retained) + "\n", encoding="utf-8")
 
 
@@ -65,12 +68,17 @@ def safe_query(query: str) -> str:
     return value
 
 
-def command_for(action: str, query: str = "", save: bool = False) -> list[str]:
+def command_for(action: str, query: str = "", save: bool = False, campaign_id: int | None = None) -> list[str]:
     base = [PHP, str(RUNNER)]
     if action in {"brief", "discover", "plan"}:
-        return base + [action]
+        command = base + [action]
+        return command + ([f"--campaign-id={campaign_id}"] if campaign_id is not None and action == "brief" else [])
+    if action == "campaigns":
+        return base + [action, "--json"]
     if action == "find":
         command = base + ["find", safe_query(query)]
+        if campaign_id is not None:
+            command.append(f"--campaign-id={campaign_id}")
         return command + (["--save"] if save else [])
     raise ValueError("Unsupported campaign action.")
 
@@ -105,6 +113,9 @@ class CampaignControlPanel(tk.Tk):
         self.token = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_TOKEN", ""))
         self.places_key = tk.StringVar(value=os.environ.get("GOOGLE_PLACES_API_KEY", ""))
         self.connection_status = tk.StringVar()
+        self.campaign_selection = tk.StringVar()
+        self.campaign_ids: dict[str, int] = {}
+        self.campaign_context: dict[str, dict[str, object]] = {}
         self._build()
 
     def _build(self) -> None:
@@ -125,14 +136,15 @@ class CampaignControlPanel(tk.Tk):
 
         setup_ready = not required_environment()
         self.connection_step(frame, setup_ready)
-        self.step(frame, "2", "Describe the companies you want", "Choose the characteristics, importance, locations, and exclusions that define a good fit. This is where the agent gets its instructions.", "Open Ideal Customer Profile", self.open_ideal_customer_profile)
-        self.step(frame, "3", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
+        self.campaign_step(frame, setup_ready)
+        self.step(frame, "3", "Describe the companies you want", "Choose the characteristics, importance, locations, and exclusions that define a good fit. This is where the agent gets its instructions.", "Open Ideal Customer Profile", self.open_ideal_customer_profile)
+        self.step(frame, "4", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
         self.suggestions = tk.LabelFrame(frame, text="Suggested company searches", padx=12, pady=9, font=("Segoe UI", 10, "bold"))
         self.suggestions.pack(fill="x", pady=(0, 10))
         self.suggestion_message = tk.StringVar(value="Click “Suggest company searches” in step 3. Your choices will appear here.")
         tk.Label(self.suggestions, textvariable=self.suggestion_message, wraplength=740, justify="left").pack(anchor="w")
 
-        finder = tk.LabelFrame(frame, text="4. Search for potential companies", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
+        finder = tk.LabelFrame(frame, text="5. Search for potential companies", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
         finder.pack(fill="x", pady=(10, 8))
         tk.Label(finder, text="Search phrase", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
         tk.Label(finder, text="Use a suggestion above or write your own. You can change it before searching.").grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 4))
@@ -141,7 +153,7 @@ class CampaignControlPanel(tk.Tk):
         tk.Button(finder, text="Find companies (nothing saved)", command=lambda: self.run("find"), font=("Segoe UI", 10, "bold")).grid(row=3, column=0, sticky="w")
         finder.columnconfigure(0, weight=1)
 
-        review = tk.LabelFrame(frame, text="5. After reviewing the results", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
+        review = tk.LabelFrame(frame, text="6. After reviewing the results", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
         review.pack(fill="x", pady=(0, 10))
         tk.Label(review, text="Only use this after you have read the results below. It adds qualifying companies to the CRM review queue; it does not create prospects or send messages.", wraplength=740, justify="left").pack(anchor="w")
         tk.Checkbutton(review, text="I reviewed the results and want to add qualifying companies to the review queue", variable=self.allow_save).pack(anchor="w", pady=(7, 3))
@@ -212,6 +224,18 @@ class CampaignControlPanel(tk.Tk):
         tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=7, column=1, sticky="w")
         box.columnconfigure(1, weight=1)
 
+    def campaign_step(self, parent: tk.Widget, setup_ready: bool) -> None:
+        box = tk.LabelFrame(parent, text="2. Choose the campaign to work on", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
+        box.pack(fill="x", pady=(0, 7))
+        tk.Label(box, text="Load the campaigns from your CRM, then choose one. Its existing prospects and targets become the agent’s working context; this does not change the CRM’s active campaign.", wraplength=740, justify="left").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 7))
+        self.campaign_box = ttk.Combobox(box, textvariable=self.campaign_selection, state="readonly", width=62)
+        self.campaign_box.grid(row=1, column=0, sticky="ew", padx=(0, 8))
+        self.campaign_box.bind("<<ComboboxSelected>>", lambda _event: self.select_campaign())
+        tk.Button(box, text="Load campaigns", command=lambda: self.run("campaigns"), state="normal" if setup_ready else "disabled").grid(row=1, column=1, sticky="e")
+        self.campaign_detail = tk.StringVar(value="Connect the dashboard first, then load your campaigns." if not setup_ready else "Click “Load campaigns” to choose one.")
+        tk.Label(box, textvariable=self.campaign_detail, wraplength=740, justify="left").grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        box.columnconfigure(0, weight=1)
+
     def append(self, text: str) -> None:
         self.output.configure(state="normal")
         self.output.insert("end", redact(text) + "\n")
@@ -241,7 +265,55 @@ class CampaignControlPanel(tk.Tk):
             return
         os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key})
         self.connection_status.set("Connection saved on this computer. You can continue to step 2.")
-        messagebox.showinfo("Campaign Operator", "Connection saved. Next, open the Ideal Customer Profile in step 2.")
+        self.run("campaigns")
+        messagebox.showinfo("Campaign Operator", "Connection saved. Your campaigns are loading now; choose one in step 2.")
+
+    def selected_campaign_id(self) -> int | None:
+        return self.campaign_ids.get(self.campaign_selection.get())
+
+    def show_campaigns(self, campaigns: list[dict[str, object]]) -> None:
+        self.campaign_ids = {}
+        self.campaign_context = {}
+        labels: list[str] = []
+        active_label = ""
+        for campaign in campaigns:
+            if not campaign.get("available"):
+                continue
+            campaign_id = int(campaign["id"])
+            label = f"{campaign['name']} ({campaign['start_date']} to {campaign['end_date']})" + (" — active" if campaign.get("is_active") else "")
+            self.campaign_ids[label] = campaign_id
+            self.campaign_context[label] = campaign
+            labels.append(label)
+            if campaign.get("is_active"):
+                active_label = label
+        self.campaign_box["values"] = labels
+        if labels:
+            saved_id = int(os.environ.get("CAMPAIGN_OPERATOR_CAMPAIGN_ID", "0") or 0)
+            saved_label = next((label for label, campaign_id in self.campaign_ids.items() if campaign_id == saved_id), "")
+            self.campaign_selection.set(saved_label or active_label or labels[0])
+            self.select_campaign(save=False)
+        else:
+            self.campaign_selection.set("")
+            self.campaign_detail.set("No campaigns were found. Create one in the CRM, then load campaigns again.")
+
+    def select_campaign(self, save: bool = True) -> None:
+        label = self.campaign_selection.get()
+        campaign = self.campaign_context.get(label)
+        campaign_id = self.campaign_ids.get(label)
+        if campaign is None or campaign_id is None:
+            return
+        targets = campaign.get("targets", {})
+        target_text = ""
+        if isinstance(targets, dict) and targets:
+            summary = ", ".join(f"{value} {str(key).replace('_', ' ')}" for key, value in list(targets.items())[:3])
+            target_text = " Targets include " + summary + "."
+        self.campaign_detail.set("Selected: " + label + ". The agent will use this campaign’s prospects and targets without changing the CRM’s active campaign." + target_text)
+        if save:
+            try:
+                save_local_environment({"CAMPAIGN_OPERATOR_CAMPAIGN_ID": str(campaign_id)})
+                os.environ["CAMPAIGN_OPERATOR_CAMPAIGN_ID"] = str(campaign_id)
+            except OSError:
+                self.append("Campaign selected for this session, but the dashboard could not remember it for next time.")
 
     def open_ideal_customer_profile(self) -> None:
         url = ideal_customer_profile_url()
@@ -267,7 +339,7 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showerror("Campaign Operator", "Add GOOGLE_PLACES_API_KEY to .env before searching for companies. Search suggestions and profile setup work without it.")
             return
         try:
-            command = command_for(action, self.query.get(), save)
+            command = command_for(action, self.query.get(), save, self.selected_campaign_id())
         except ValueError as error:
             messagebox.showerror("Campaign Operator", str(error))
             return
@@ -278,6 +350,13 @@ class CampaignControlPanel(tk.Tk):
         try:
             result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False)
             output = (result.stdout + result.stderr).strip() or "Command completed without output."
+            if action == "campaigns" and result.returncode == 0:
+                try:
+                    campaigns = json.loads(result.stdout).get("items", [])
+                    if isinstance(campaigns, list):
+                        self.after(0, self.show_campaigns, campaigns)
+                except (json.JSONDecodeError, AttributeError):
+                    output += "\n\nCould not read the campaign list. Check the connection and try again."
             if action == "plan":
                 suggestions = re.findall(r"^\d+\. (.+)$", result.stdout, re.MULTILINE)
                 self.after(0, self.show_suggested_searches, suggestions)

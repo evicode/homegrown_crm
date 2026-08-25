@@ -26,6 +26,8 @@ return [
     'capabilities' => [
         'capability.discover' => ['scopes' => [], 'mutation' => false, 'rate' => 'read'],
         'campaign.get_active' => ['scopes' => ['campaign:read'], 'mutation' => false, 'rate' => 'read'],
+        'campaign.list' => ['scopes' => ['campaign:read'], 'mutation' => false, 'rate' => 'read'],
+        'campaign.get' => ['scopes' => ['campaign:read'], 'mutation' => false, 'rate' => 'read'],
         'report.get_campaign' => ['scopes' => ['reports:read'], 'mutation' => false, 'rate' => 'read'],
         'company.search' => ['scopes' => ['companies:read'], 'mutation' => false, 'rate' => 'read'],
         'company.create' => ['scopes' => ['companies:write'], 'mutation' => true, 'rate' => 'write'],

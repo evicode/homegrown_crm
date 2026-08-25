@@ -83,6 +83,10 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
             self.assertIn("CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES=4", content)
             self.assertIn("CAMPAIGN_OPERATOR_TOKEN=test-token", content)
+            MODULE.save_local_environment({"CAMPAIGN_OPERATOR_CAMPAIGN_ID": "14"}, path)
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("CAMPAIGN_OPERATOR_TOKEN=test-token", content)
+            self.assertIn("CAMPAIGN_OPERATOR_CAMPAIGN_ID=14", content)
             with self.assertRaises(ValueError):
                 MODULE.save_local_environment({"CAMPAIGN_OPERATOR_TOKEN": "line one\nline two"}, path)
         finally:

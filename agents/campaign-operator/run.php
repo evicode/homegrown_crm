@@ -94,6 +94,18 @@ function toolData(array $response): array
     return is_array($decoded) ? $decoded : [];
 }
 
+function selectedCampaignId(): ?int
+{
+    global $argv;
+    foreach ($argv as $argument) {
+        if (!str_starts_with($argument, '--campaign-id=')) continue;
+        $id = (int) substr($argument, strlen('--campaign-id='));
+        return $id > 0 ? $id : null;
+    }
+    $savedId = (int) (getenv('CAMPAIGN_OPERATOR_CAMPAIGN_ID') ?: 0);
+    return $savedId > 0 ? $savedId : null;
+}
+
 function publicWebsiteText(?string $url): string
 {
     if ($url === null || filter_var($url, FILTER_VALIDATE_URL) === false) return '';
@@ -251,11 +263,23 @@ try {
         exit(0);
     }
     if ($command === 'brief') {
+        $campaignId = selectedCampaignId();
         $brief = [];
-        foreach (['get_active_campaign', 'get_campaign_report', 'search_prospects'] as $tool) {
-            $brief[$tool] = callTool($endpoint, $token, $sessionId, $id++, $tool, $tool === 'search_prospects' ? ['query' => ''] : []);
+        foreach (['campaign', 'get_campaign_report', 'search_prospects'] as $tool) {
+            $name = $tool === 'campaign' ? ($campaignId === null ? 'get_active_campaign' : 'get_campaign') : $tool;
+            $arguments = $tool === 'campaign' ? ($campaignId === null ? [] : ['id' => $campaignId]) : ($tool === 'search_prospects' ? ['query' => '', 'campaign_id' => $campaignId] : ['campaign_id' => $campaignId]);
+            $brief[$tool] = callTool($endpoint, $token, $sessionId, $id++, $name, array_filter($arguments, static fn (mixed $value): bool => $value !== null));
         }
         echo json_encode($brief, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        exit(0);
+    }
+    if ($command === 'campaigns') {
+        $campaigns = toolData(callTool($endpoint, $token, $sessionId, $id++, 'list_campaigns', []));
+        if (in_array('--json', $argv, true)) echo json_encode($campaigns, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        else {
+            echo "CAMPAIGNS\n";
+            foreach ($campaigns['items'] ?? [] as $campaign) echo ($campaign['id'] ?? '?') . '. ' . ($campaign['name'] ?? 'Unnamed campaign') . ' — ' . ($campaign['start_date'] ?? '?') . ' to ' . ($campaign['end_date'] ?? '?') . (!empty($campaign['is_active']) ? ' (active)' : '') . "\n";
+        }
         exit(0);
     }
     if ($command === 'plan') {
@@ -268,6 +292,7 @@ try {
     }
     if ($command === 'find') {
         $query = trim((string) ($argv[2] ?? ''));
+        $campaignId = selectedCampaignId();
         $placesKey = getenv('GOOGLE_PLACES_API_KEY') ?: '';
         if ($query === '') throw new InvalidArgumentException('Use find <ideal-customer search query>.');
         if ($placesKey === '') throw new RuntimeException('Set GOOGLE_PLACES_API_KEY before using lead discovery.');
@@ -289,7 +314,8 @@ try {
             ];
             try {
                 $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
-                $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', ['query' => $name]));
+                $prospectArguments = ['query' => $name]; if ($campaignId !== null) $prospectArguments['campaign_id'] = $campaignId;
+                $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', $prospectArguments));
                 $domain = websiteDomain($place['websiteUri'] ?? null);
                 if ($domain !== '') {
                     $domainCompanies = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $domain]));
@@ -322,7 +348,7 @@ try {
         else printLeadReview($result);
         exit(0);
     }
-    if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, plan, find, discover, or call <tool> <json-arguments>.');
+    if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, campaigns, plan, find, discover, or call <tool> <json-arguments>.');
     $tool = $argv[2];
     $arguments = json_decode($argv[3], true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($arguments)) throw new InvalidArgumentException('Tool arguments must be a JSON object.');
