@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -33,6 +34,26 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
             del os.environ["CAMPAIGN_OPERATOR_TOKEN"]
         else:
             os.environ["CAMPAIGN_OPERATOR_TOKEN"] = previous
+
+    def test_local_environment_file_is_loaded_without_overwriting_existing_values(self):
+        key = "CAMPAIGN_OPERATOR_TEST_SETTING"
+        previous = os.environ.pop(key, None)
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as file:
+                file.write("# comment\nCAMPAIGN_OPERATOR_TEST_SETTING=from-file\n")
+                path = Path(file.name)
+            MODULE.load_local_environment(path)
+            self.assertEqual(os.environ[key], "from-file")
+            os.environ[key] = "from-process"
+            MODULE.load_local_environment(path)
+            self.assertEqual(os.environ[key], "from-process")
+        finally:
+            if "path" in locals():
+                path.unlink(missing_ok=True)
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
 
 
 if __name__ == "__main__":

@@ -16,6 +16,27 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
+
+
+def load_local_environment(path: Path = AGENT_DIR / ".env") -> None:
+    """Load simple local key=value settings without replacing real environment values."""
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key.replace("_", "").isalnum() or not key or key[0].isdigit():
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+load_local_environment()
 PHP = os.environ.get("CAMPAIGN_OPERATOR_PHP", "php")
 
 
@@ -101,7 +122,7 @@ class CampaignControlPanel(tk.Tk):
     def run(self, action: str, save: bool = False) -> None:
         missing = required_environment()
         if missing:
-            messagebox.showerror("Campaign Operator", "Set these environment variables before running:\n" + "\n".join(missing))
+            messagebox.showerror("Campaign Operator", "Copy .env.example to .env, fill in these values, then open this dashboard again:\n" + "\n".join(missing))
             return
         try:
             command = command_for(action, self.query.get(), save)

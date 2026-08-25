@@ -2,15 +2,21 @@
 
 This is a standalone, MCP-only campaign operator package. It does not read the CRM database directly and it does not contain any token.
 
-## Interactive ChatGPT terminal session on Windows
+## Windows dashboard — double-click to open
+
+Double-click [open-campaign-dashboard.cmd](open-campaign-dashboard.cmd). It opens the Campaign Operator dashboard directly—no terminal commands required. Before the first use, copy `.env.example` to `.env` in this folder and fill in the CRM address and token. That local `.env` file is ignored by Git.
+
+The dashboard gives users buttons for a daily brief, search suggestions, lead discovery, and explicitly confirmed queue submission. It never creates prospects or sends outreach.
+
+## Optional interactive ChatGPT terminal session
 
 Double-click [launch-campaign-agent.cmd](launch-campaign-agent.cmd) after signing in to the Codex CLI with your ChatGPT account. It starts an interactive Campaign Operator session in the terminal. The subscription model handles the conversation and reasoning; `run.php` makes the MCP calls to this CRM. No OpenAI API key is used by this launcher.
 
 The session is interactive, not a background service: it runs while the terminal is open and asks before CRM writes. It still needs the CRM integration token below, plus the Google Places key only when you run lead discovery.
 
-## Windows control panel and guardrails
+## Dashboard guardrails
 
-Run `py -3 campaign_control_panel.py` from this folder for a simple Windows interface. It only runs the fixed **brief**, **tool discovery**, **search-plan**, and **lead finder** commands using argument lists (`shell=False`); it cannot run arbitrary terminal input.
+The dashboard only runs the fixed **brief**, **tool discovery**, **search-plan**, and **lead finder** commands using argument lists (`shell=False`); it cannot run arbitrary terminal input.
 
 - Lead searches are dry-run by default.
 - Queue submission requires a review checkbox and a second confirmation.
@@ -22,7 +28,7 @@ Run `py -3 tests/campaign_operator_control_panel.test.py` from the project root 
 
 ## Setup
 
-Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). Export it only in the process that runs the operator:
+Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). For the dashboard, copy `.env.example` to `.env` and put the values there. The dashboard reads that file automatically. For terminal use, export the variables only in the process that runs the operator:
 
 ```powershell
 $env:CAMPAIGN_OPERATOR_MCP_URL = 'http://127.0.0.1/conversions/mcp'
