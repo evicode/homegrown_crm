@@ -69,6 +69,25 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
             else:
                 os.environ[key] = previous
 
+    def test_connection_settings_write_only_allowed_single_line_keys(self):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as file:
+            file.write("CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES=4\n")
+            path = Path(file.name)
+        try:
+            values = {
+                "CAMPAIGN_OPERATOR_MCP_URL": "http://127.0.0.1/conversions/mcp",
+                "CAMPAIGN_OPERATOR_TOKEN": "test-token",
+                "GOOGLE_PLACES_API_KEY": "places-key",
+            }
+            MODULE.save_local_environment(values, path)
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES=4", content)
+            self.assertIn("CAMPAIGN_OPERATOR_TOKEN=test-token", content)
+            with self.assertRaises(ValueError):
+                MODULE.save_local_environment({"CAMPAIGN_OPERATOR_TOKEN": "line one\nline two"}, path)
+        finally:
+            path.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     unittest.main()

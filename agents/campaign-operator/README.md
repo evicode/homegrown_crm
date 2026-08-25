@@ -4,7 +4,7 @@ This is a standalone, MCP-only campaign operator package. It does not read the C
 
 ## Windows dashboard — double-click to open
 
-Double-click [open-campaign-dashboard.cmd](open-campaign-dashboard.cmd). It opens the Campaign Operator dashboard directly—no terminal commands required. Before the first use, copy `.env.example` to `.env` in this folder and fill in the CRM address and token. That local `.env` file is ignored by Git.
+Double-click [open-campaign-dashboard.cmd](open-campaign-dashboard.cmd). It opens the Campaign Operator dashboard directly—no terminal commands required. Enter the CRM address and token directly in step 1 of the dashboard. It saves them in a local `.env` file that is ignored by Git.
 
 The dashboard walks users through: connect it once, describe the companies they want, generate/edit a search, find companies, then optionally add reviewed candidates to the CRM queue. It never creates prospects or sends outreach.
 
@@ -28,7 +28,7 @@ Run `py -3 tests/campaign_operator_control_panel.test.py` from the project root 
 
 ## Setup
 
-Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). For the dashboard, copy `.env.example` to `.env` and put the values there. The dashboard reads that file automatically. For terminal use, export the variables only in the process that runs the operator:
+Create a local integration token in **Integrations** with the read scopes listed in [AGENT.md](AGENT.md). Enter it in step 1 of the dashboard; it reads and updates its local `.env` file automatically. For terminal use, export the variables only in the process that runs the operator:
 
 ```powershell
 $env:CAMPAIGN_OPERATOR_MCP_URL = 'http://127.0.0.1/conversions/mcp'

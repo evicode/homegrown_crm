@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import threading
 import tkinter as tk
@@ -19,7 +18,7 @@ AGENT_DIR = Path(__file__).resolve().parent
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
-ENV_EXAMPLE = AGENT_DIR / ".env.example"
+CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY")
 
 
 def load_local_environment(path: Path = AGENT_DIR / ".env") -> None:
@@ -42,6 +41,19 @@ def load_local_environment(path: Path = AGENT_DIR / ".env") -> None:
 
 load_local_environment()
 PHP = os.environ.get("CAMPAIGN_OPERATOR_PHP", "php")
+
+
+def save_local_environment(values: dict[str, str], path: Path = ENV_FILE) -> None:
+    """Save dashboard connection settings while retaining unrelated local options."""
+    for key, value in values.items():
+        if key not in CONNECTION_KEYS or "\r" in value or "\n" in value:
+            raise ValueError("Connection settings must be single-line values.")
+    existing = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    retained = [line for line in existing if not any(line.strip().startswith(key + "=") for key in CONNECTION_KEYS)]
+    while retained and not retained[-1].strip():
+        retained.pop()
+    retained.extend(f"{key}={values.get(key, '')}" for key in CONNECTION_KEYS)
+    path.write_text("\n".join(retained) + "\n", encoding="utf-8")
 
 
 def safe_query(query: str) -> str:
@@ -87,6 +99,10 @@ class CampaignControlPanel(tk.Tk):
         self.minsize(840, 700)
         self.query = tk.StringVar()
         self.allow_save = tk.BooleanVar(value=False)
+        self.endpoint = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_MCP_URL", "http://127.0.0.1/conversions/mcp"))
+        self.token = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_TOKEN", ""))
+        self.places_key = tk.StringVar(value=os.environ.get("GOOGLE_PLACES_API_KEY", ""))
+        self.connection_status = tk.StringVar()
         self._build()
 
     def _build(self) -> None:
@@ -96,9 +112,7 @@ class CampaignControlPanel(tk.Tk):
         tk.Label(frame, text="Start at step 1 if this is your first time. The dashboard will not create prospects or contact anyone without your confirmation.", wraplength=760, justify="left").pack(anchor="w", pady=(3, 14))
 
         setup_ready = not required_environment()
-        connection_text = "Connection ready" if setup_ready else "Connection needs setup"
-        connection_detail = "Your local CRM connection is configured." if setup_ready else "Add the CRM address and token once. The dashboard keeps them in a local .env file."
-        self.step(frame, "1", "Connect this dashboard", connection_detail, "Review connection settings" if setup_ready else "Set up connection", self.open_configuration, connection_text)
+        self.connection_step(frame, setup_ready)
         self.step(frame, "2", "Describe the companies you want", "Choose the characteristics, importance, locations, and exclusions that define a good fit. This is where the agent gets its instructions.", "Open Ideal Customer Profile", self.open_ideal_customer_profile)
         self.step(frame, "3", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
 
@@ -137,6 +151,23 @@ class CampaignControlPanel(tk.Tk):
         tk.Button(row, text=button, command=command).grid(row=0, column=2, rowspan=2, padx=(12, 0))
         row.columnconfigure(1, weight=1)
 
+    def connection_step(self, parent: tk.Widget, setup_ready: bool) -> None:
+        box = tk.LabelFrame(parent, text="1. Connect this dashboard", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
+        box.pack(fill="x", pady=(0, 7))
+        self.connection_status.set("Connection ready — you can edit these settings here." if setup_ready else "Required once before the dashboard can use your CRM.")
+        tk.Label(box, textvariable=self.connection_status, wraplength=740, justify="left").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 7))
+        tk.Label(box, text="CRM address", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w")
+        tk.Entry(box, textvariable=self.endpoint, width=68).grid(row=1, column=1, sticky="ew", pady=2)
+        tk.Label(box, text="Use the address ending in /mcp.").grid(row=2, column=1, sticky="w", pady=(0, 5))
+        tk.Label(box, text="CRM token", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w")
+        tk.Entry(box, textvariable=self.token, show="*", width=68).grid(row=3, column=1, sticky="ew", pady=2)
+        tk.Label(box, text="Create this in CRM → Integrations. It stays only in this computer's ignored .env file.", wraplength=620, justify="left").grid(row=4, column=1, sticky="w", pady=(0, 5))
+        tk.Label(box, text="Google Places key", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w")
+        tk.Entry(box, textvariable=self.places_key, show="*", width=68).grid(row=5, column=1, sticky="ew", pady=2)
+        tk.Label(box, text="Needed only to search for companies. You can save the CRM connection without it.").grid(row=6, column=1, sticky="w", pady=(0, 7))
+        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=7, column=1, sticky="w")
+        box.columnconfigure(1, weight=1)
+
     def append(self, text: str) -> None:
         self.output.configure(state="normal")
         self.output.insert("end", redact(text) + "\n")
@@ -149,14 +180,24 @@ class CampaignControlPanel(tk.Tk):
             return
         subprocess.Popen(["cmd.exe", "/d", "/c", str(LAUNCHER)], cwd=AGENT_DIR, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
 
-    def open_configuration(self) -> None:
-        if not ENV_FILE.exists():
-            if not ENV_EXAMPLE.exists():
-                messagebox.showerror("Campaign Operator", "The configuration template is missing.")
-                return
-            shutil.copyfile(ENV_EXAMPLE, ENV_FILE)
-        os.startfile(ENV_FILE)
-        messagebox.showinfo("Campaign Operator", "Fill in the CRM address and token, save the file, then close and reopen this dashboard.")
+    def save_connection(self) -> None:
+        endpoint = self.endpoint.get().strip().rstrip("/")
+        token = self.token.get().strip()
+        places_key = self.places_key.get().strip()
+        if not endpoint.endswith("/mcp"):
+            messagebox.showerror("Campaign Operator", "The CRM address must end with /mcp.")
+            return
+        if not token:
+            messagebox.showerror("Campaign Operator", "Enter the CRM token from CRM → Integrations.")
+            return
+        try:
+            save_local_environment({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key})
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Campaign Operator", f"Could not save the connection: {error}")
+            return
+        os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key})
+        self.connection_status.set("Connection saved on this computer. You can continue to step 2.")
+        messagebox.showinfo("Campaign Operator", "Connection saved. Next, open the Ideal Customer Profile in step 2.")
 
     def open_ideal_customer_profile(self) -> None:
         url = ideal_customer_profile_url()
