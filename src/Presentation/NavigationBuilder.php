@@ -18,6 +18,7 @@ final class NavigationBuilder
         $campaignDestination = $hasActiveCampaign ? null : 'campaign.settings';
         $items = [
             ['dashboard', 'dashboard', 'Dashboard', 'Workspace'],
+            ['search.index', 'search.index', 'Search', 'Workspace'],
             ['work.index', $campaignDestination ?? 'work.index', 'Daily work', 'Workspace'],
             ['followups.index', 'followups.index', 'Follow-up history', 'Workspace'],
             ['interactions.index', 'interactions.index', 'Activity history', 'Workspace'],
