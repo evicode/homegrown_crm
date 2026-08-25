@@ -13,7 +13,22 @@
 
 Take automated database backups at least daily during an active campaign, encrypt them at rest, and retain them according to the organization’s retention policy. Keep deployment configuration backups separately from secrets-manager/provider records.
 
+For MariaDB/MySQL, use an environment-specific credential mechanism rather than placing a password in shell history. This example writes a dated backup outside the web root:
+
+```powershell
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+& mysqldump --single-transaction --routines --triggers dreamsmith_campaign > "D:\secure-backups\dreamsmith_campaign-$stamp.sql"
+```
+
 Test a restore periodically into a separate database/environment. Record the date, operator, source backup, result, and recovery duration. Never restore over production as a test.
+
+```powershell
+mysql -e "CREATE DATABASE dreamsmith_campaign_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+Get-Content -Raw "D:\secure-backups\dreamsmith_campaign-YYYYMMDD-HHMMSS.sql" | mysql dreamsmith_campaign_restore_test
+mysql -N -e "SELECT COUNT(*) FROM dreamsmith_campaign_restore_test.schema_migrations"
+```
+
+The final command must report every expected migration before the temporary restore database is removed. Confirm the restored application can connect before considering the rehearsal successful.
 
 ## Routine maintenance
 
