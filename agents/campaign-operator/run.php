@@ -121,6 +121,43 @@ function websiteDomain(?string $url): string
     return preg_replace('/^www\./', '', $host) ?? '';
 }
 
+/** @param array<string,mixed> $profile @return list<string> */
+function searchPlan(array $profile): array
+{
+    $characteristics = [];
+    foreach ($profile['positive_keywords'] ?? [] as $term => $importance) {
+        if (!is_string($term) || trim($term) === '') continue;
+        $characteristics[] = ['term' => trim($term), 'importance' => max(1, (int) $importance)];
+    }
+    usort($characteristics, static fn (array $left, array $right): int => $right['importance'] <=> $left['importance']);
+    foreach ($profile['required_any'] ?? [] as $term) {
+        if (!is_string($term) || trim($term) === '') continue;
+        $characteristics[] = ['term' => trim($term), 'importance' => 0];
+    }
+    $locations = array_values(array_filter(array_map(static fn (mixed $location): string => is_string($location) ? trim($location) : '', $profile['preferred_locations'] ?? [])));
+    $queries = [];
+    foreach ($characteristics as $characteristic) {
+        $term = $characteristic['term'];
+        if ($locations === []) $queries[] = $term . ' companies';
+        else foreach (array_slice($locations, 0, 3) as $location) $queries[] = $term . ' companies in ' . $location;
+    }
+    if ($queries === [] && is_string($profile['description'] ?? null) && trim($profile['description']) !== '') $queries[] = trim($profile['description']) . ' companies';
+    $queries = array_values(array_unique(array_filter($queries, static fn (string $query): bool => strlen($query) <= 300)));
+    return array_slice($queries, 0, 8);
+}
+
+/** @param list<string> $queries */
+function printSearchPlan(array $queries): void
+{
+    echo "SUGGESTED COMPANY SEARCHES\n";
+    if ($queries === []) {
+        echo "Add at least one required or scored characteristic to the Ideal Customer Profile first.\n";
+        return;
+    }
+    echo "These come directly from your Ideal Customer Profile. Edit one before searching if needed.\n\n";
+    foreach ($queries as $number => $query) echo ($number + 1) . '. ' . $query . "\n";
+}
+
 /** @param list<array<string,mixed>> $companies @param list<array<string,mixed>> $prospects @return array<string,mixed> */
 function duplicateCheck(array $candidate, array $companies, array $prospects): array
 {
@@ -215,6 +252,14 @@ try {
         echo json_encode($brief, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit(0);
     }
+    if ($command === 'plan') {
+        $profile = toolData(callTool($endpoint, $token, $sessionId, $id++, 'get_lead_profile', []));
+        if (!is_array($profile['positive_keywords'] ?? null) || !is_array($profile['required_any'] ?? null)) throw new RuntimeException('The MCP token needs lead_profiles:read and the CRM ideal customer profile must be available.');
+        $queries = searchPlan($profile);
+        if (in_array('--json', $argv, true)) echo json_encode(['profile' => $profile['description'] ?? null, 'queries' => $queries], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        else printSearchPlan($queries);
+        exit(0);
+    }
     if ($command === 'find') {
         $query = trim((string) ($argv[2] ?? ''));
         $placesKey = getenv('GOOGLE_PLACES_API_KEY') ?: '';
@@ -264,7 +309,7 @@ try {
         else printLeadReview($result);
         exit(0);
     }
-    if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, find, discover, or call <tool> <json-arguments>.');
+    if ($command !== 'call' || !isset($argv[2], $argv[3])) throw new InvalidArgumentException('Use brief, plan, find, discover, or call <tool> <json-arguments>.');
     $tool = $argv[2];
     $arguments = json_decode($argv[3], true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($arguments)) throw new InvalidArgumentException('Tool arguments must be a JSON object.');

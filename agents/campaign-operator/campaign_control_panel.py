@@ -5,6 +5,7 @@ It deliberately exposes a fixed command set rather than a general terminal.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import threading
 import tkinter as tk
@@ -29,7 +30,7 @@ def safe_query(query: str) -> str:
 
 def command_for(action: str, query: str = "", save: bool = False) -> list[str]:
     base = [PHP, str(RUNNER)]
-    if action in {"brief", "discover"}:
+    if action in {"brief", "discover", "plan"}:
         return base + [action]
     if action == "find":
         command = base + ["find", safe_query(query)]
@@ -70,7 +71,8 @@ class CampaignControlPanel(tk.Tk):
         finder.pack(fill="x", pady=12)
         tk.Label(finder, text="Ideal-customer search").grid(row=0, column=0, sticky="w")
         tk.Entry(finder, textvariable=self.query, width=75).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(2, 8))
-        tk.Button(finder, text="Find (dry run)", command=lambda: self.run("find")).grid(row=2, column=0, sticky="w")
+        tk.Button(finder, text="Suggest searches from profile", command=lambda: self.run("plan")).grid(row=2, column=0, sticky="w", padx=(0, 8))
+        tk.Button(finder, text="Find (dry run)", command=lambda: self.run("find")).grid(row=2, column=1, sticky="w")
         tk.Checkbutton(finder, text="I reviewed the profile and want to submit qualifying candidates to the Lead Finder queue", variable=self.allow_save).grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 2))
         tk.Button(finder, text="Find and save reviewed candidates", command=self.save_find).grid(row=4, column=0, sticky="w")
         self.output = scrolledtext.ScrolledText(frame, height=18, wrap="word", state="disabled")
@@ -107,12 +109,17 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showerror("Campaign Operator", str(error))
             return
         self.append("> " + " ".join(command[:3]) + (" [lead query supplied]" if action == "find" else ""))
-        threading.Thread(target=self._run_process, args=(command,), daemon=True).start()
+        threading.Thread(target=self._run_process, args=(command, action), daemon=True).start()
 
-    def _run_process(self, command: list[str]) -> None:
+    def _run_process(self, command: list[str], action: str) -> None:
         try:
             result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False)
             output = (result.stdout + result.stderr).strip() or "Command completed without output."
+            if action == "plan":
+                first_suggestion = re.search(r"^1\. (.+)$", result.stdout, re.MULTILINE)
+                if first_suggestion:
+                    self.after(0, self.query.set, first_suggestion.group(1))
+                    output += "\n\nThe first suggestion is now in the search box. You can edit it before running the search."
             self.after(0, self.append, output)
         except subprocess.TimeoutExpired:
             self.after(0, self.append, "Command stopped after the 120-second safety timeout.")

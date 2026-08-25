@@ -13,6 +13,7 @@ SPEC.loader.exec_module(MODULE)
 class CampaignOperatorGuardrailTests(unittest.TestCase):
     def test_only_whitelisted_commands_are_built(self):
         self.assertEqual(MODULE.command_for("brief")[-1], "brief")
+        self.assertEqual(MODULE.command_for("plan")[-1], "plan")
         self.assertIn("--save", MODULE.command_for("find", "software firms in Portland", True))
         with self.assertRaises(ValueError):
             MODULE.command_for("shell", "whoami")
