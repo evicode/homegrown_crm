@@ -115,7 +115,7 @@ final class Bootstrap
             $auth, $database, new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules),
             $prospectRules, $sales, $shell, $flash, $csrf, $router,
         );
-        $interactionController = new InteractionController($auth,$database,new InteractionService($database,new AuditWriter(),new SystemClock()),$sales,$csrf,$flash,$router,new SystemClock());
+        $interactionController = new InteractionController($auth,$database,new InteractionService($database,new AuditWriter(),new SystemClock()),$sales,$shell,$csrf,$flash,$router,new SystemClock());
         $followUpController = new FollowUpController($auth,$database,new FollowUpService($database,new AuditWriter(),new SystemClock()),$shell,$flash,$csrf,$router,new SystemClock());
         $opportunityController = new OpportunityController($auth,$database,new OpportunityService($database,new AuditWriter(),new SystemClock(),$sales),$sales,$shell,$flash,$csrf,$router);
         $reportingController = new ReportingController($auth, $database, $shell, $router);
@@ -273,6 +273,7 @@ final class Bootstrap
         $router->add('POST', '/prospects/{id}/status-events/{eventId}/void', static fn (Request $request,array $p): Response => $prospectController->voidEvent($request,(int)$p['id'],(int)$p['eventId']), 'prospects.events.void');
         $router->add('POST', '/prospects/{id}/archive', static fn (Request $request,array $p): Response => $prospectController->archive($request,(int)$p['id'],false), 'prospects.archive');
         $router->add('POST', '/prospects/{id}/restore', static fn (Request $request,array $p): Response => $prospectController->archive($request,(int)$p['id'],true), 'prospects.restore');
+        $router->add('GET', '/interactions', static fn (Request $request): Response => $interactionController->history($request), 'interactions.index');
         $router->add('POST', '/prospects/{id}/interactions', static fn (Request $request,array $p): Response => $interactionController->record($request,(int)$p['id']), 'interactions.create');
         $router->add('POST', '/interactions/{id}/correct', static fn (Request $request,array $p): Response => $interactionController->correct($request,(int)$p['id']), 'interactions.correct');
         $router->add('POST', '/prospects/{id}/follow-ups', static fn (Request $request,array $p): Response => $followUpController->schedule($request,(int)$p['id']), 'followups.schedule');
