@@ -216,25 +216,31 @@ function printLeadReview(array $result): void
 function qualify(array $candidate, array $profile): array
 {
     $websiteText = publicWebsiteText(is_string($candidate['website'] ?? null) ? $candidate['website'] : null);
-    $haystack = strtolower(implode(' ', array_filter([$candidate['name'] ?? null, $candidate['address'] ?? null, $candidate['category'] ?? null, $websiteText], 'is_string')));
-    $matches = static fn (string $term): bool => $term !== '' && str_contains($haystack, strtolower($term));
+    $fields = ['company name' => $candidate['name'] ?? null, 'address' => $candidate['address'] ?? null, 'business category' => $candidate['category'] ?? null, 'public website' => $websiteText];
+    $matchSources = static function (string $term) use ($fields): array {
+        $term = strtolower($term); $sources = [];
+        foreach ($fields as $source => $text) if ($term !== '' && is_string($text) && str_contains(strtolower($text), $term)) $sources[] = $source;
+        return $sources;
+    };
+    $matches = static fn (string $term): bool => $matchSources($term) !== [];
+    $sourceLabel = static fn (string $term): string => implode(', ', $matchSources($term));
     $reasons = []; $score = 0;
     foreach ($profile['negative_keywords'] as $term) {
-        if (is_string($term) && $matches($term)) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ["Excluded: {$term}"], 'website_checked' => $websiteText !== ''];
+        if (is_string($term) && $matches($term)) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ["Excluded: {$term} (found in " . $sourceLabel($term) . ')'], 'website_checked' => $websiteText !== ''];
     }
     $required = array_values(array_filter($profile['required_any'], 'is_string'));
     $requiredMatches = array_values(array_filter($required, $matches));
     if ($required !== [] && $requiredMatches === []) return ['fit' => 'not_fit', 'score' => 0, 'reasons' => ['No required characteristic matched.'], 'website_checked' => $websiteText !== ''];
-    foreach ($requiredMatches as $term) $reasons[] = "Required characteristic: {$term}";
+    foreach ($requiredMatches as $term) $reasons[] = "Required characteristic: {$term} (found in " . $sourceLabel($term) . ')';
     foreach ($profile['positive_keywords'] as $term => $weight) {
-        if (is_string($term) && $matches($term)) { $points = max(1, (int) $weight); $score += $points; $reasons[] = "Matched {$term} (+{$points})"; }
+        if (is_string($term) && $matches($term)) { $points = max(1, (int) $weight); $score += $points; $reasons[] = "Characteristic: {$term} (+{$points}; found in " . $sourceLabel($term) . ')'; }
     }
     foreach ($profile['preferred_locations'] ?? [] as $location) {
-        if (is_string($location) && $matches($location)) { $score += 1; $reasons[] = "Preferred location: {$location} (+1)"; }
+        if (is_string($location) && $matches($location)) { $score += 1; $reasons[] = "Preferred location: {$location} (+1; found in " . $sourceLabel($location) . ')'; }
     }
     $minimum = max(1, (int) ($profile['minimum_score'] ?? 1));
     $strong = max($minimum, (int) ($profile['strong_fit_score'] ?? $minimum));
-    return ['fit' => $score >= $strong ? 'strong_fit' : ($score >= $minimum ? 'possible_fit' : 'not_fit'), 'score' => $score, 'reasons' => $reasons === [] ? ['No positive evidence matched.'] : $reasons, 'website_checked' => $websiteText !== ''];
+    return ['fit' => $score >= $strong ? 'strong_fit' : ($score >= $minimum ? 'possible_fit' : 'not_fit'), 'score' => $score, 'reasons' => $reasons === [] ? ['No matching characteristics found.'] : $reasons, 'website_checked' => $websiteText !== ''];
 }
 
 try {
@@ -276,31 +282,38 @@ try {
         foreach ($places as $place) {
             $name = trim((string) ($place['displayName']['text'] ?? ''));
             if ($name === '') continue;
-            $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
-            $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', ['query' => $name]));
-            $domain = websiteDomain($place['websiteUri'] ?? null);
-            if ($domain !== '') {
-                $domainCompanies = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $domain]));
-                $existing['items'] = array_merge($existing['items'] ?? [], $domainCompanies['items'] ?? []);
-            }
             $candidate = [
                 'source' => 'google_places', 'source_id' => $place['id'] ?? null, 'name' => $name,
                 'website' => $place['websiteUri'] ?? null, 'address' => $place['formattedAddress'] ?? null,
                 'category' => $place['primaryType'] ?? null, 'business_status' => $place['businessStatus'] ?? null,
             ];
-            $candidate += duplicateCheck($candidate, $existing['items'] ?? [], $prospects['items'] ?? []);
-            $candidate += qualify($candidate, $profile);
-            if ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount < $maxSaves) {
-                $saved = callTool($endpoint, $token, $sessionId, $id++, 'propose_lead_candidate', [
-                    'idempotency_key' => bin2hex(random_bytes(16)), 'source' => $candidate['source'], 'source_id' => (string) $candidate['source_id'],
-                    'search_query' => $query, 'name' => $candidate['name'], 'website' => $candidate['website'], 'address' => $candidate['address'],
-                    'category' => $candidate['category'], 'business_status' => $candidate['business_status'], 'fit' => $candidate['fit'],
-                    'score' => $candidate['score'], 'evidence' => $candidate['reasons'],
-                ]);
-                $candidate['queue_submission'] = toolData($saved);
-                $savedCount++;
-            } elseif ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount >= $maxSaves) {
-                $candidate['queue_submission'] = ['skipped' => 'Per-run save limit reached.'];
+            try {
+                $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
+                $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', ['query' => $name]));
+                $domain = websiteDomain($place['websiteUri'] ?? null);
+                if ($domain !== '') {
+                    $domainCompanies = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $domain]));
+                    $existing['items'] = array_merge($existing['items'] ?? [], $domainCompanies['items'] ?? []);
+                }
+                $candidate += duplicateCheck($candidate, $existing['items'] ?? [], $prospects['items'] ?? []);
+                $candidate += qualify($candidate, $profile);
+                if ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount < $maxSaves) {
+                    $saved = callTool($endpoint, $token, $sessionId, $id++, 'propose_lead_candidate', [
+                        'idempotency_key' => bin2hex(random_bytes(16)), 'source' => $candidate['source'], 'source_id' => (string) $candidate['source_id'],
+                        'search_query' => $query, 'name' => $candidate['name'], 'website' => $candidate['website'], 'address' => $candidate['address'],
+                        'category' => $candidate['category'], 'business_status' => $candidate['business_status'], 'fit' => $candidate['fit'],
+                        'score' => $candidate['score'], 'evidence' => $candidate['reasons'],
+                    ]);
+                    $candidate['queue_submission'] = toolData($saved);
+                    $savedCount++;
+                } elseif ($save && !$candidate['already_in_crm'] && $candidate['fit'] !== 'not_fit' && $savedCount >= $maxSaves) {
+                    $candidate['queue_submission'] = ['skipped' => 'Per-run save limit reached.'];
+                }
+            } catch (Throwable) {
+                $candidate += ['already_in_crm' => false, 'matching_companies' => [], 'matching_prospect_ids' => [], 'fit' => 'not_fit', 'score' => 0, 'reasons' => []];
+                $candidate['reasons'][] = 'Research could not be completed for this company. Check the CRM queue before retrying.';
+                $candidate['research_error'] = true;
+                if (!isset($candidate['queue_submission'])) $candidate['queue_submission'] = ['skipped' => 'Could not confirm queue submission. Check the CRM queue before retrying.'];
             }
             $candidates[] = $candidate;
         }
