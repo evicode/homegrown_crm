@@ -127,12 +127,17 @@ class CampaignControlPanel(tk.Tk):
         self.connection_step(frame, setup_ready)
         self.step(frame, "2", "Describe the companies you want", "Choose the characteristics, importance, locations, and exclusions that define a good fit. This is where the agent gets its instructions.", "Open Ideal Customer Profile", self.open_ideal_customer_profile)
         self.step(frame, "3", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
+        self.suggestions = tk.LabelFrame(frame, text="Suggested company searches", padx=12, pady=9, font=("Segoe UI", 10, "bold"))
+        self.suggestions.pack(fill="x", pady=(0, 10))
+        self.suggestion_message = tk.StringVar(value="Click “Suggest company searches” in step 3. Your choices will appear here.")
+        tk.Label(self.suggestions, textvariable=self.suggestion_message, wraplength=740, justify="left").pack(anchor="w")
 
         finder = tk.LabelFrame(frame, text="4. Search for potential companies", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
         finder.pack(fill="x", pady=(10, 8))
         tk.Label(finder, text="Search phrase", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
         tk.Label(finder, text="Use a suggestion above or write your own. You can change it before searching.").grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 4))
-        tk.Entry(finder, textvariable=self.query, width=76).grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        self.search_entry = tk.Entry(finder, textvariable=self.query, width=76)
+        self.search_entry.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 8))
         tk.Button(finder, text="Find companies (nothing saved)", command=lambda: self.run("find"), font=("Segoe UI", 10, "bold")).grid(row=3, column=0, sticky="w")
         finder.columnconfigure(0, weight=1)
 
@@ -160,6 +165,25 @@ class CampaignControlPanel(tk.Tk):
             return
         if event.delta:
             canvas.yview_scroll(int(-event.delta / 120), "units")
+
+    def show_suggested_searches(self, queries: list[str]) -> None:
+        for child in self.suggestions.winfo_children():
+            child.destroy()
+        if not queries:
+            tk.Label(self.suggestions, text="No suggestions were created. Add characteristics in the Ideal Customer Profile, then try again.", wraplength=740, justify="left").pack(anchor="w")
+            return
+        tk.Label(self.suggestions, text="Choose one to copy it into the search box. You can edit it before looking for companies.", wraplength=740, justify="left").pack(anchor="w", pady=(0, 6))
+        for query in queries:
+            row = tk.Frame(self.suggestions)
+            row.pack(fill="x", pady=2)
+            tk.Label(row, text=query, wraplength=570, justify="left").pack(side="left", fill="x", expand=True)
+            tk.Button(row, text="Use this search", command=lambda value=query: self.use_suggested_search(value)).pack(side="right", padx=(10, 0))
+        self.suggestion_message.set(f"{len(queries)} suggested searches ready.")
+
+    def use_suggested_search(self, query: str) -> None:
+        self.query.set(query)
+        self.search_entry.focus_set()
+        self.append("Search selected. Review or edit it in step 4, then choose “Find companies (nothing saved)”.")
 
     def step(self, parent: tk.Widget, number: str, title: str, detail: str, button: str, command: object, status: str | None = None) -> None:
         row = tk.Frame(parent, padx=10, pady=8, highlightthickness=1, highlightbackground="#d7dce5")
@@ -255,10 +279,11 @@ class CampaignControlPanel(tk.Tk):
             result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False)
             output = (result.stdout + result.stderr).strip() or "Command completed without output."
             if action == "plan":
-                first_suggestion = re.search(r"^1\. (.+)$", result.stdout, re.MULTILINE)
-                if first_suggestion:
-                    self.after(0, self.query.set, first_suggestion.group(1))
-                    output += "\n\nThe first suggestion is now in the search box. You can edit it before running the search."
+                suggestions = re.findall(r"^\d+\. (.+)$", result.stdout, re.MULTILINE)
+                self.after(0, self.show_suggested_searches, suggestions)
+                if suggestions:
+                    self.after(0, self.query.set, suggestions[0])
+                    output += "\n\nSuggested searches are now shown above step 4. The first is in the search box."
             self.after(0, self.append, output)
         except subprocess.TimeoutExpired:
             self.after(0, self.append, "Command stopped after the 120-second safety timeout.")
