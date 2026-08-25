@@ -119,11 +119,11 @@ final class Bootstrap
         $followUpController = new FollowUpController($auth,$database,new FollowUpService($database,new AuditWriter(),new SystemClock()),$shell,$flash,$csrf,$router,new SystemClock());
         $opportunityController = new OpportunityController($auth,$database,new OpportunityService($database,new AuditWriter(),new SystemClock(),$sales),$sales,$shell,$flash,$csrf,$router);
         $reportingController = new ReportingController($auth, $database, $shell, $router);
-        $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
+        $dataController = new DataController($auth, new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), new InteractionService($database, new AuditWriter(), new SystemClock()), new SystemClock(), $sales, (string) $app['import_signing_key']), $shell, $flash, $csrf, $router);
         $integrations = require $root . '/config/integrations.php';
         $integrationController = new IntegrationController($auth, $database, new IntegrationService($database, new AuditWriter(), new SystemClock(), $integrations), $integrations, $shell, $flash, $csrf, $router);
         $leadFinderController = new LeadFinderController($auth, $database, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, $shell, $flash, $csrf, $router);
-        $apiData = new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), $sales, (string) $app['import_signing_key']);
+        $apiData = new DataService($database, $session, new RecordService($database, new AuditWriter(), new SystemClock()), new ProspectService($database, new AuditWriter(), new SystemClock(), $prospectRules), new InteractionService($database, new AuditWriter(), new SystemClock()), new SystemClock(), $sales, (string) $app['import_signing_key']);
         $apiController = new ApiController(
             $database,
             new BearerTokenGuard(new LocalTokenAuthenticator($database, $integrations)),
@@ -213,6 +213,10 @@ final class Bootstrap
         $router->add('POST', '/lead-finder/profile', static fn (Request $request): Response => $leadFinderController->updateProfile($request), 'lead-finder.profile.update');
         $router->add('POST', '/lead-finder/{id}/review', static fn (Request $request, array $parameters): Response => $leadFinderController->review($request, (int) $parameters['id']), 'lead-finder.review');
         $router->add('GET', '/data/import', static fn (): Response => $dataController->importForm(), 'data.import');
+        $router->add('GET', '/data/import/interactions', static fn (): Response => $dataController->interactionForm(), 'data.interactions.import');
+        $router->add('GET', '/data/import/interactions/template', static fn (): Response => $dataController->interactionTemplate(), 'data.interactions.template');
+        $router->add('POST', '/data/import/interactions/preview', static fn (Request $request): Response => $dataController->interactionPreview($request), 'data.interactions.preview');
+        $router->add('POST', '/data/import/interactions/commit', static fn (Request $request): Response => $dataController->interactionCommit($request), 'data.interactions.commit');
         $router->add('GET', '/data/import/template', static fn (): Response => $dataController->template(), 'data.import.template');
         $router->add('POST', '/data/import/preview', static fn (Request $request): Response => $dataController->preview($request), 'data.import.preview');
         $router->add('POST', '/data/import/commit', static fn (Request $request): Response => $dataController->commit($request), 'data.import.commit');
