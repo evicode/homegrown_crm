@@ -55,6 +55,20 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
             else:
                 os.environ[key] = previous
 
+    def test_profile_url_comes_from_the_mcp_address(self):
+        key = "CAMPAIGN_OPERATOR_MCP_URL"
+        previous = os.environ.get(key)
+        try:
+            os.environ[key] = "https://crm.example.test/workspace/mcp"
+            self.assertEqual(MODULE.ideal_customer_profile_url(), "https://crm.example.test/workspace/lead-finder/profile")
+            os.environ[key] = "https://crm.example.test/not-an-mcp-endpoint"
+            self.assertIsNone(MODULE.ideal_customer_profile_url())
+        finally:
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
 
 if __name__ == "__main__":
     unittest.main()

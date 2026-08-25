@@ -6,7 +6,7 @@ This is a standalone, MCP-only campaign operator package. It does not read the C
 
 Double-click [open-campaign-dashboard.cmd](open-campaign-dashboard.cmd). It opens the Campaign Operator dashboard directly—no terminal commands required. Before the first use, copy `.env.example` to `.env` in this folder and fill in the CRM address and token. That local `.env` file is ignored by Git.
 
-The dashboard gives users buttons for a daily brief, search suggestions, lead discovery, and explicitly confirmed queue submission. It never creates prospects or sends outreach.
+The dashboard walks users through: connect it once, describe the companies they want, generate/edit a search, find companies, then optionally add reviewed candidates to the CRM queue. It never creates prospects or sends outreach.
 
 ## Optional interactive ChatGPT terminal session
 
