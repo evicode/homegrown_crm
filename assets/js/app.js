@@ -80,6 +80,61 @@ document.querySelectorAll('[data-quick-create]').forEach((form) => {
     });
 });
 
+const priorityRows = (target) => {
+    if (!(target instanceof HTMLElement)) return [];
+    return [...target.querySelectorAll('[data-profile-weight-row]')];
+};
+
+const appendPriorityRow = (target, term = '', weight = '1') => {
+    if (!(target instanceof HTMLElement)) return null;
+    const template = target.parentElement?.querySelector('[data-profile-weight-template]');
+    if (!(template instanceof HTMLTemplateElement)) return null;
+    const row = template.content.firstElementChild?.cloneNode(true);
+    if (!(row instanceof HTMLElement)) return null;
+    const input = row.querySelector('input[name="positive_keyword[]"]');
+    const select = row.querySelector('select[name="positive_keyword_weight[]"]');
+    if (input instanceof HTMLInputElement) input.value = term;
+    if (select instanceof HTMLSelectElement) select.value = String(weight);
+    target.append(row);
+    return row;
+};
+
+document.querySelectorAll('[data-profile-weight-add]').forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.addEventListener('click', () => {
+        const target = button.parentElement?.querySelector('[data-profile-weight-rows]');
+        const row = appendPriorityRow(target);
+        row?.querySelector('input')?.focus();
+    });
+});
+
+document.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-profile-weight-remove]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    const row = button.closest('[data-profile-weight-row]');
+    const list = button.closest('[data-profile-weight-rows]');
+    if (!(row instanceof HTMLElement) || !(list instanceof HTMLElement)) return;
+    if (priorityRows(list).length === 1) {
+        const input = row.querySelector('input');
+        if (input instanceof HTMLInputElement) { input.value = ''; input.focus(); }
+        const select = row.querySelector('select');
+        if (select instanceof HTMLSelectElement) select.value = '1';
+        return;
+    }
+    row.remove();
+});
+
+const fillPriorityRows = (target, text) => {
+    if (!(target instanceof HTMLElement)) return false;
+    const values = text.split(/\r?\n/).map((line) => {
+        const [term, weight = '1'] = line.split('|', 2);
+        return {term: term.trim(), weight: String(Math.max(1, Math.min(20, Number.parseInt(weight.trim(), 10) || 1)))};
+    }).filter((value) => value.term !== '');
+    priorityRows(target).forEach((row) => row.remove());
+    (values.length > 0 ? values : [{term: '', weight: '1'}]).forEach((value) => appendPriorityRow(target, value.term, value.weight));
+    return true;
+};
+
 document.querySelectorAll('[data-profile-upload]').forEach((input) => {
     if (!(input instanceof HTMLInputElement)) return;
     input.addEventListener('change', async () => {
@@ -90,7 +145,8 @@ document.querySelectorAll('[data-profile-upload]').forEach((input) => {
         const status = input.closest('.profile-upload')?.querySelector('[data-profile-upload-status]');
         const csrf = form?.querySelector('input[name="_csrf"]');
         const uploadUrl = form?.dataset.profileUploadUrl;
-        if (!(form instanceof HTMLFormElement) || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) || !(csrf instanceof HTMLInputElement) || !uploadUrl) return;
+        const priorityTarget = target instanceof HTMLElement && target.hasAttribute('data-profile-weight-rows');
+        if (!(form instanceof HTMLFormElement) || (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && !priorityTarget) || !(csrf instanceof HTMLInputElement) || !uploadUrl) return;
         input.disabled = true;
         if (status instanceof HTMLElement) status.textContent = 'Reading file…';
         try {
@@ -101,9 +157,12 @@ document.querySelectorAll('[data-profile-upload]').forEach((input) => {
             const response = await fetch(uploadUrl, {method: 'POST', body: data});
             const payload = await response.json();
             if (!response.ok || typeof payload.text !== 'string') throw new Error(payload.error || 'Could not read that file.');
-            target.value = payload.text;
-            target.dispatchEvent(new Event('input', {bubbles: true}));
-            target.focus();
+            if (priorityTarget) fillPriorityRows(target, payload.text);
+            else if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+                target.value = payload.text;
+                target.dispatchEvent(new Event('input', {bubbles: true}));
+                target.focus();
+            }
             if (status instanceof HTMLElement) status.textContent = 'Field filled. You can edit it before saving.';
         } catch (exception) {
             if (status instanceof HTMLElement) status.textContent = exception instanceof Error ? exception.message : 'Could not read that file.';

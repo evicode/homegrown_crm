@@ -24,12 +24,17 @@
         </section>
         <section class="profile-field-card">
             <div class="profile-field-card__header">
-                <div><label for="profile-positive-keywords">What the agent should look for</label><p>Give extra weight to things that make a company a better fit.</p></div>
-                <div class="profile-upload"><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-positive-keywords" data-field="positive_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"></label><span data-profile-upload-status role="status"></span></div>
+                <div><h2 id="profile-positive-keywords-heading">What the agent should look for</h2><p>Add each positive sign and choose how important it is to you.</p></div>
+                <div class="profile-upload"><div class="profile-upload__actions"><a class="button button--secondary" href="<?= $escape($exportUrl) ?>">Export list</a><label class="button button--secondary">Import file<input class="visually-hidden" type="file" data-profile-upload data-target="profile-positive-keywords" data-field="positive_keywords" accept=".txt,.csv,.tsv,.xlsx,.docx"></label></div><span data-profile-upload-status role="status"></span></div>
             </div>
-            <textarea id="profile-positive-keywords" name="positive_keywords" rows="7" placeholder="What to look for | importance (1–20)&#10;&#10;custom software | 5&#10;manual workflow | 3"><?php foreach($profile['positive_keywords'] as $term=>$weight):?><?= $escape($term) ?> | <?= $escape($weight) ?>
-<?php endforeach;?></textarea>
-            <p class="field-hint">The words on the left are what it searches for. The number says how important that match is: 1 is a small clue; 20 is decisive.</p>
+            <div id="profile-positive-keywords" class="profile-priority-list" data-profile-weight-rows aria-labelledby="profile-positive-keywords-heading">
+                <?php $priorityRows=array_merge(array_map(static fn($term,$weight):array=>['term'=>$term,'weight'=>$weight],array_keys($profile['positive_keywords']),array_values($profile['positive_keywords'])),array_fill(0,3,['term'=>'','weight'=>1]));foreach($priorityRows as $row): ?>
+                    <div class="profile-priority-row" data-profile-weight-row><label>What to look for<input name="positive_keyword[]" value="<?= $escape($row['term']) ?>" maxlength="160" placeholder="Example: manual workflow"></label><label>Priority<select name="positive_keyword_weight[]"><?php for($priority=$priorityMinimum;$priority<=$priorityMaximum;$priority++): ?><option value="<?= $priority ?>"<?= (int)$row['weight']===$priority?' selected':'' ?>><?= $priority ?></option><?php endfor; ?></select></label><button class="button button--secondary profile-priority-row__remove" type="button" data-profile-weight-remove aria-label="Remove this item">Remove</button></div>
+                <?php endforeach; ?>
+            </div>
+            <template data-profile-weight-template><div class="profile-priority-row" data-profile-weight-row><label>What to look for<input name="positive_keyword[]" maxlength="160" placeholder="Example: manual workflow"></label><label>Priority<select name="positive_keyword_weight[]"><?php for($priority=$priorityMinimum;$priority<=$priorityMaximum;$priority++): ?><option value="<?= $priority ?>"<?= $priority===1?' selected':'' ?>><?= $priority ?></option><?php endfor; ?></select></label><button class="button button--secondary profile-priority-row__remove" type="button" data-profile-weight-remove aria-label="Remove this item">Remove</button></div></template>
+            <button class="button button--secondary profile-priority-list__add" type="button" data-profile-weight-add>Add another item</button>
+            <p class="field-hint">Priority <?= $escape($priorityMinimum) ?> is a small clue. Priority <?= $escape($priorityMaximum) ?> is decisive. Imports and exports use <code>what to look for | priority</code>, one item per line.</p>
         </section>
         <section class="profile-field-card">
             <div class="profile-field-card__header">
