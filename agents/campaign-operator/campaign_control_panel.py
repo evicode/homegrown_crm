@@ -228,7 +228,7 @@ class CampaignControlPanel(tk.Tk):
         tk.Label(box, text="Create this in CRM → Integrations. It stays only in this computer's ignored .env file.", wraplength=620, justify="left").grid(row=4, column=1, sticky="w", pady=(0, 5))
         tk.Label(box, text="Google Places key", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w")
         tk.Entry(box, textvariable=self.places_key, show="*", width=68).grid(row=5, column=1, sticky="ew", pady=2)
-        tk.Label(box, text="Needed only to search for companies. You can save the CRM connection without it.").grid(row=6, column=1, sticky="w", pady=(0, 7))
+        tk.Label(box, text="Optional: needed only when Google Places is selected below. You can save the CRM connection without it.").grid(row=6, column=1, sticky="w", pady=(0, 7))
         tk.Label(box, text="Foursquare key", font=("Segoe UI", 9, "bold")).grid(row=7, column=0, sticky="w")
         tk.Entry(box, textvariable=self.foursquare_key, show="*", width=68).grid(row=7, column=1, sticky="ew", pady=2)
         tk.Label(box, text="Mapbox token", font=("Segoe UI", 9, "bold")).grid(row=8, column=0, sticky="w")
@@ -236,11 +236,12 @@ class CampaignControlPanel(tk.Tk):
         tk.Label(box, text="Your own Mapbox Search token. It will be used only to locate OSM search areas; it is never copied from another project.", wraplength=620, justify="left").grid(row=9, column=1, sticky="w", pady=(0, 4))
         tk.Label(box, text="OSM Overpass URL", font=("Segoe UI", 9, "bold")).grid(row=10, column=0, sticky="w")
         tk.Entry(box, textvariable=self.overpass_url, width=68).grid(row=10, column=1, sticky="ew", pady=2)
-        sources = tk.Frame(box); sources.grid(row=11, column=1, sticky="w", pady=4)
+        tk.Label(box, text="Optional: your managed or self-hosted OpenStreetMap query endpoint. Required only when OpenStreetMap is selected.", wraplength=620, justify="left").grid(row=11, column=1, sticky="w", pady=(0, 4))
+        sources = tk.Frame(box); sources.grid(row=12, column=1, sticky="w", pady=4)
         tk.Checkbutton(sources, text="Google Places", variable=self.use_google).pack(side="left")
         tk.Checkbutton(sources, text="Foursquare", variable=self.use_foursquare).pack(side="left", padx=10)
         tk.Checkbutton(sources, text="OpenStreetMap", variable=self.use_osm).pack(side="left", padx=10)
-        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=12, column=1, sticky="w")
+        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=13, column=1, sticky="w")
         box.columnconfigure(1, weight=1)
 
     def campaign_step(self, parent: tk.Widget, setup_ready: bool) -> None:

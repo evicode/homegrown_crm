@@ -12,7 +12,7 @@ The dashboard walks users through: connect it once, describe the companies they 
 
 Double-click [launch-campaign-agent.cmd](launch-campaign-agent.cmd) after signing in to the Codex CLI with your ChatGPT account. It starts an interactive Campaign Operator session in the terminal. The subscription model handles the conversation and reasoning; `run.php` makes the MCP calls to this CRM. No OpenAI API key is used by this launcher.
 
-The session is interactive, not a background service: it runs while the terminal is open and asks before CRM writes. It still needs the CRM integration token below, plus the Google Places key only when you run lead discovery.
+The session is interactive, not a background service: it runs while the terminal is open and asks before CRM writes. It still needs the CRM integration token below, plus at least one configured discovery source when you run lead discovery.
 
 ## Dashboard guardrails
 
@@ -39,7 +39,7 @@ php agents/campaign-operator/run.php plan
 
 `brief` reads the active campaign, campaign report, and prospects. It makes no changes.
 
-To use lead discovery, enable the Places API in a Google Maps Platform project and export `GOOGLE_PLACES_API_KEY` in the same process. The key stays outside this repository. Then run a precise ideal-customer query:
+To use lead discovery, select one or more sources in the dashboard. Google Places and Foursquare each need their own key. OpenStreetMap discovery needs your own Mapbox token to find the requested area and an Overpass endpoint that you manage or host; it does not use a shared public endpoint. These settings stay outside this repository. Then run a precise ideal-customer query:
 
 ```powershell
 $env:GOOGLE_PLACES_API_KEY = 'your-server-side-key'
@@ -50,7 +50,7 @@ Before the first search, open **Lead Finder → Ideal customer profile** in the 
 
 Run `plan` to get up to eight suggested company searches drawn directly from the highest-importance characteristics and preferred locations. They are starting points, not claims that the profile is complete; edit a suggestion before using `find`.
 
-`find` searches Google Places, checks names and website domains against CRM companies and checks active prospects, fetches the public homepage when available, and prints a readable review queue. A repeated Google Places result cannot reopen or overwrite a previously reviewed queue item. Add `--json` only when another program needs the full machine-readable result.
+`find` searches every selected source, removes obvious duplicates, checks names and website domains against CRM companies and checks active prospects, fetches the public homepage when available, and prints a readable review queue. A repeated discovery result cannot reopen or overwrite a previously reviewed queue item. Add `--json` only when another program needs the full machine-readable result.
 
 Add `--save` to submit qualifying, non-duplicate candidates to the CRM **Lead Finder** queue through MCP. This needs the `lead_candidates:write` scope, but it still does not create a company or prospect.
 

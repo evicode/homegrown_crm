@@ -19,6 +19,10 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             MODULE.command_for("shell", "whoami")
 
+    def test_find_command_carries_selected_discovery_sources(self):
+        command = MODULE.command_for("find", "software firms in Portland", sources=["google_places", "osm"])
+        self.assertIn("--sources=google_places,osm", command)
+
     def test_queries_are_bounded_and_single_line(self):
         with self.assertRaises(ValueError):
             MODULE.safe_query("x")

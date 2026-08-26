@@ -91,11 +91,85 @@ function googleCandidates(string $query,string $key):array{$places=placeSearch($
 /** @return list<array<string,mixed>> */
 function foursquareCandidates(string $query,string $key):array{$url='https://places-api.foursquare.com/places/search?'.http_build_query(['query'=>$query,'limit'=>20,'fields'=>'fsq_place_id,name,address,locality,region,postcode,website,fsq_category_labels']);$ctx=stream_context_create(['http'=>['header'=>"Accept: application/json\r\nAuthorization: Bearer {$key}\r\nX-Places-Api-Version: 2025-06-17",'ignore_errors'=>true,'timeout'=>20]]);$body=file_get_contents($url,false,$ctx);$data=is_string($body)?json_decode($body,true):null;if(!is_array($data)||isset($data['error']))throw new RuntimeException('Foursquare search failed.');return array_values(array_filter(array_map(static function(array $p):array{$address=implode(', ',array_filter([$p['address']??null,$p['locality']??null,$p['region']??null,$p['postcode']??null],'is_string'));return['source'=>'foursquare','source_id'=>$p['fsq_place_id']??null,'name'=>$p['name']??null,'website'=>$p['website']??null,'address'=>$address?:null,'category'=>is_array($p['fsq_category_labels']??null)?implode(', ',$p['fsq_category_labels']):null,'business_status'=>null];},$data['results']??[]),static fn(array $p):bool=>is_string($p['name'])&&trim($p['name'])!==''));}
 /** @return list<string> */
-function selectedSources():array{global $argv;foreach($argv as $arg)if(str_starts_with($arg,'--sources='))return array_values(array_intersect(['google_places','foursquare','osm'],explode(',',substr($arg,10))));return array_keys(array_filter(['google_places'=>getenv('GOOGLE_PLACES_API_KEY')?:null,'foursquare'=>getenv('FOURSQUARE_PLACES_API_KEY')?:null,'osm'=>(getenv('MAPBOX_ACCESS_TOKEN')&&getenv('OSM_OVERPASS_URL'))?:null]));}
+function selectedSources(): array
+{
+    global $argv;
+
+    $supported = ['google_places', 'foursquare', 'osm'];
+    foreach ($argv as $argument) {
+        if (str_starts_with($argument, '--sources=')) {
+            return array_values(array_intersect($supported, explode(',', substr($argument, 10))));
+        }
+    }
+
+    $available = [];
+    if (getenv('GOOGLE_PLACES_API_KEY')) $available[] = 'google_places';
+    if (getenv('FOURSQUARE_PLACES_API_KEY')) $available[] = 'foursquare';
+    if (getenv('MAPBOX_ACCESS_TOKEN') && getenv('OSM_OVERPASS_URL')) $available[] = 'osm';
+    return $available;
+}
 /** @param list<array<string,mixed>> $places @return list<array<string,mixed>> */
 function deduplicatePlaces(array $places):array{$unique=[];foreach($places as $place){$key=websiteDomain($place['website']??null);if($key==='')$key=normalizedText($place['name']??null).'|'.normalizedText($place['address']??null);if($key===''||$key==='|')$key=(string)$place['source'].'|'.(string)$place['source_id'];if(isset($unique[$key]))continue;$unique[$key]=$place;}return array_values($unique);}
 /** @return list<array<string,mixed>> */
-function osmCandidates(string $query,string $mapboxToken,string $overpassUrl):array{$location=preg_match('/\bin\s+(.+)$/i',$query,$m)?$m[1]:$query;$geo='https://api.mapbox.com/search/searchbox/v1/forward?'.http_build_query(['q'=>$location,'types'=>'place,locality,region','limit'=>1,'access_token'=>$mapboxToken]);$body=@file_get_contents($geo,false,stream_context_create(['http'=>['timeout'=>10]]));$feature=is_string($body)?(json_decode($body,true)['features'][0]??null):null;$coordinates=$feature['geometry']['coordinates']??null;if(!is_array($coordinates)||count($coordinates)<2)throw new RuntimeException('Mapbox could not locate the OSM search area.');[$longitude,$latitude]=$coordinates;$overpass='[out:json][timeout:25];(nwr["office"](around:10000,'.$latitude.','.$longitude.');nwr["craft"](around:10000,'.$latitude.','.$longitude.');nwr["industrial"](around:10000,'.$latitude.','.$longitude.'););out center 30;';$ctx=stream_context_create(['http'=>['method'=>'POST','header'=>'Content-Type: application/x-www-form-urlencoded','content'=>http_build_query(['data'=>$overpass]),'timeout'=>30,'ignore_errors'=>true]);$response=@file_get_contents($overpassUrl,false,$ctx);$data=is_string($response)?json_decode($response,true):null;if(!is_array($data))throw new RuntimeException('OSM search failed.');$out=[];foreach(array_slice($data['elements']??[],0,20)as $item){$tags=$item['tags']??[];$name=trim((string)($tags['name']??''));if($name==='')continue;$address=implode(', ',array_filter([$tags['addr:housenumber']??null,$tags['addr:street']??null,$tags['addr:city']??null],'is_string'));$category=implode(', ',array_keys(array_intersect_key($tags,array_flip(['office','craft','industrial']))));$out[]=['source'=>'openstreetmap','source_id'=>(string)($item['type']??'').' '.(string)($item['id']??''),'name'=>$name,'website'=>$tags['website']??$tags['contact:website']??null,'address'=>$address?:null,'category'=>$category?:null,'business_status'=>null];}return $out;}
+function osmCandidates(string $query, string $mapboxToken, string $overpassUrl): array
+{
+    $location = preg_match('/\bin\s+(.+)$/i', $query, $matches) ? $matches[1] : $query;
+    $geocodeUrl = 'https://api.mapbox.com/search/searchbox/v1/forward?' . http_build_query([
+        'q' => $location,
+        'types' => 'place,locality,region',
+        'limit' => 1,
+        'access_token' => $mapboxToken,
+    ]);
+    $body = @file_get_contents($geocodeUrl, false, stream_context_create(['http' => ['timeout' => 10]]));
+    $geocode = is_string($body) ? json_decode($body, true) : null;
+    $feature = is_array($geocode) ? ($geocode['features'][0] ?? null) : null;
+    $coordinates = is_array($feature) ? ($feature['geometry']['coordinates'] ?? null) : null;
+    if (!is_array($coordinates) || count($coordinates) < 2 || !is_numeric($coordinates[0]) || !is_numeric($coordinates[1])) {
+        throw new RuntimeException('Mapbox could not locate the OSM search area.');
+    }
+
+    $longitude = (float) $coordinates[0];
+    $latitude = (float) $coordinates[1];
+    $overpassQuery = '[out:json][timeout:25];('
+        . 'nwr["office"](around:10000,' . $latitude . ',' . $longitude . ');'
+        . 'nwr["craft"](around:10000,' . $latitude . ',' . $longitude . ');'
+        . 'nwr["industrial"](around:10000,' . $latitude . ',' . $longitude . ');'
+        . ');out center 30;';
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => 'Content-Type: application/x-www-form-urlencoded',
+        'content' => http_build_query(['data' => $overpassQuery]),
+        'timeout' => 30,
+        'ignore_errors' => true,
+    ]]);
+    $response = @file_get_contents($overpassUrl, false, $context);
+    $data = is_string($response) ? json_decode($response, true) : null;
+    if (!is_array($data)) throw new RuntimeException('OpenStreetMap search failed.');
+
+    $candidates = [];
+    foreach (array_slice($data['elements'] ?? [], 0, 20) as $item) {
+        if (!is_array($item)) continue;
+        $tags = is_array($item['tags'] ?? null) ? $item['tags'] : [];
+        $name = trim((string) ($tags['name'] ?? ''));
+        if ($name === '') continue;
+        $address = implode(', ', array_filter([
+            $tags['addr:housenumber'] ?? null,
+            $tags['addr:street'] ?? null,
+            $tags['addr:city'] ?? null,
+        ], 'is_string'));
+        $category = implode(', ', array_keys(array_intersect_key($tags, array_flip(['office', 'craft', 'industrial']))));
+        $candidates[] = [
+            'source' => 'openstreetmap',
+            'source_id' => (string) ($item['type'] ?? '') . ' ' . (string) ($item['id'] ?? ''),
+            'name' => $name,
+            'website' => $tags['website'] ?? $tags['contact:website'] ?? null,
+            'address' => $address ?: null,
+            'category' => $category ?: null,
+            'business_status' => null,
+        ];
+    }
+    return $candidates;
+}
 
 /** @return array<string,mixed> */
 function toolData(array $response): array
