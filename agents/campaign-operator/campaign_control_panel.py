@@ -20,7 +20,7 @@ AGENT_DIR = Path(__file__).resolve().parent
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
-CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY", "FOURSQUARE_PLACES_API_KEY", "MAPBOX_ACCESS_TOKEN", "CAMPAIGN_OPERATOR_SOURCES")
+CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY", "FOURSQUARE_PLACES_API_KEY", "MAPBOX_ACCESS_TOKEN", "OSM_OVERPASS_URL", "CAMPAIGN_OPERATOR_SOURCES")
 LOCAL_SETTING_KEYS = CONNECTION_KEYS + ("CAMPAIGN_OPERATOR_CAMPAIGN_ID",)
 
 
@@ -116,8 +116,10 @@ class CampaignControlPanel(tk.Tk):
         self.places_key = tk.StringVar(value=os.environ.get("GOOGLE_PLACES_API_KEY", ""))
         self.foursquare_key = tk.StringVar(value=os.environ.get("FOURSQUARE_PLACES_API_KEY", ""))
         self.mapbox_key = tk.StringVar(value=os.environ.get("MAPBOX_ACCESS_TOKEN", ""))
+        self.overpass_url = tk.StringVar(value=os.environ.get("OSM_OVERPASS_URL", ""))
         self.use_google = tk.BooleanVar(value="google_places" in os.environ.get("CAMPAIGN_OPERATOR_SOURCES", "google_places").split(","))
         self.use_foursquare = tk.BooleanVar(value="foursquare" in os.environ.get("CAMPAIGN_OPERATOR_SOURCES", "").split(","))
+        self.use_osm = tk.BooleanVar(value="osm" in os.environ.get("CAMPAIGN_OPERATOR_SOURCES", "").split(","))
         self.connection_status = tk.StringVar()
         self.campaign_selection = tk.StringVar()
         self.campaign_ids: dict[str, int] = {}
@@ -232,10 +234,13 @@ class CampaignControlPanel(tk.Tk):
         tk.Label(box, text="Mapbox token", font=("Segoe UI", 9, "bold")).grid(row=8, column=0, sticky="w")
         tk.Entry(box, textvariable=self.mapbox_key, show="*", width=68).grid(row=8, column=1, sticky="ew", pady=2)
         tk.Label(box, text="Your own Mapbox Search token. It will be used only to locate OSM search areas; it is never copied from another project.", wraplength=620, justify="left").grid(row=9, column=1, sticky="w", pady=(0, 4))
-        sources = tk.Frame(box); sources.grid(row=10, column=1, sticky="w", pady=4)
+        tk.Label(box, text="OSM Overpass URL", font=("Segoe UI", 9, "bold")).grid(row=10, column=0, sticky="w")
+        tk.Entry(box, textvariable=self.overpass_url, width=68).grid(row=10, column=1, sticky="ew", pady=2)
+        sources = tk.Frame(box); sources.grid(row=11, column=1, sticky="w", pady=4)
         tk.Checkbutton(sources, text="Google Places", variable=self.use_google).pack(side="left")
         tk.Checkbutton(sources, text="Foursquare", variable=self.use_foursquare).pack(side="left", padx=10)
-        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=11, column=1, sticky="w")
+        tk.Checkbutton(sources, text="OpenStreetMap", variable=self.use_osm).pack(side="left", padx=10)
+        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=12, column=1, sticky="w")
         box.columnconfigure(1, weight=1)
 
     def campaign_step(self, parent: tk.Widget, setup_ready: bool) -> None:
@@ -268,7 +273,8 @@ class CampaignControlPanel(tk.Tk):
         places_key = self.places_key.get().strip()
         foursquare_key = self.foursquare_key.get().strip()
         mapbox_key = self.mapbox_key.get().strip()
-        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get())) if enabled]
+        overpass_url = self.overpass_url.get().strip()
+        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get()), ("osm", self.use_osm.get())) if enabled]
         if not endpoint.endswith("/mcp"):
             messagebox.showerror("Campaign Operator", "The CRM address must end with /mcp.")
             return
@@ -276,11 +282,11 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showerror("Campaign Operator", "Enter the CRM token from CRM → Integrations.")
             return
         try:
-            save_local_environment({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "MAPBOX_ACCESS_TOKEN": mapbox_key, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
+            save_local_environment({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "MAPBOX_ACCESS_TOKEN": mapbox_key, "OSM_OVERPASS_URL": overpass_url, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
         except (OSError, ValueError) as error:
             messagebox.showerror("Campaign Operator", f"Could not save the connection: {error}")
             return
-        os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "MAPBOX_ACCESS_TOKEN": mapbox_key, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
+        os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "MAPBOX_ACCESS_TOKEN": mapbox_key, "OSM_OVERPASS_URL": overpass_url, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
         self.connection_status.set("Connection saved on this computer. You can continue to step 2.")
         self.run("campaigns")
         messagebox.showinfo("Campaign Operator", "Connection saved. Your campaigns are loading now; choose one in step 2.")
@@ -352,9 +358,9 @@ class CampaignControlPanel(tk.Tk):
         if missing:
             messagebox.showerror("Campaign Operator", "Copy .env.example to .env, fill in these values, then open this dashboard again:\n" + "\n".join(missing))
             return
-        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get())) if enabled]
-        if action == "find" and not (("google_places" in sources and os.environ.get("GOOGLE_PLACES_API_KEY")) or ("foursquare" in sources and os.environ.get("FOURSQUARE_PLACES_API_KEY"))):
-            messagebox.showerror("Campaign Operator", "Select Google Places or Foursquare and add its key before searching for companies.")
+        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get()), ("osm", self.use_osm.get())) if enabled]
+        if action == "find" and not (("google_places" in sources and os.environ.get("GOOGLE_PLACES_API_KEY")) or ("foursquare" in sources and os.environ.get("FOURSQUARE_PLACES_API_KEY")) or ("osm" in sources and os.environ.get("MAPBOX_ACCESS_TOKEN") and os.environ.get("OSM_OVERPASS_URL"))):
+            messagebox.showerror("Campaign Operator", "Select a configured discovery source before searching.")
             return
         try:
             command = command_for(action, self.query.get(), save, self.selected_campaign_id(), sources)
