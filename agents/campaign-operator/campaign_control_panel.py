@@ -90,6 +90,20 @@ def required_environment() -> list[str]:
     return [name for name in required if not os.environ.get(name)]
 
 
+def missing_source_settings(sources: list[str]) -> list[str]:
+    requirements = {
+        "google_places": ("GOOGLE_PLACES_API_KEY",),
+        "foursquare": ("FOURSQUARE_PLACES_API_KEY",),
+        "osm": ("MAPBOX_ACCESS_TOKEN", "OSM_OVERPASS_URL"),
+    }
+    labels = {
+        "google_places": "Google Places key",
+        "foursquare": "Foursquare key",
+        "osm": "Mapbox token and OSM Overpass URL",
+    }
+    return [labels[source] for source in sources if any(not os.environ.get(key) for key in requirements[source])]
+
+
 def ideal_customer_profile_url() -> str | None:
     endpoint = os.environ.get("CAMPAIGN_OPERATOR_MCP_URL", "").strip().rstrip("/")
     if not endpoint or not endpoint.endswith("/mcp"):
@@ -360,9 +374,14 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showerror("Campaign Operator", "Copy .env.example to .env, fill in these values, then open this dashboard again:\n" + "\n".join(missing))
             return
         sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get()), ("osm", self.use_osm.get())) if enabled]
-        if action == "find" and not (("google_places" in sources and os.environ.get("GOOGLE_PLACES_API_KEY")) or ("foursquare" in sources and os.environ.get("FOURSQUARE_PLACES_API_KEY")) or ("osm" in sources and os.environ.get("MAPBOX_ACCESS_TOKEN") and os.environ.get("OSM_OVERPASS_URL"))):
-            messagebox.showerror("Campaign Operator", "Select a configured discovery source before searching.")
-            return
+        if action == "find":
+            if not sources:
+                messagebox.showerror("Campaign Operator", "Select at least one discovery source before searching.")
+                return
+            missing_settings = missing_source_settings(sources)
+            if missing_settings:
+                messagebox.showerror("Campaign Operator", "Add the required setting for every selected source before searching:\n" + "\n".join(missing_settings))
+                return
         try:
             command = command_for(action, self.query.get(), save, self.selected_campaign_id(), sources)
         except ValueError as error:

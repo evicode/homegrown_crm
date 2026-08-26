@@ -23,6 +23,21 @@ class CampaignOperatorGuardrailTests(unittest.TestCase):
         command = MODULE.command_for("find", "software firms in Portland", sources=["google_places", "osm"])
         self.assertIn("--sources=google_places,osm", command)
 
+    def test_selected_sources_must_each_have_their_own_settings(self):
+        previous = {key: os.environ.get(key) for key in ("GOOGLE_PLACES_API_KEY", "MAPBOX_ACCESS_TOKEN", "OSM_OVERPASS_URL")}
+        try:
+            os.environ["GOOGLE_PLACES_API_KEY"] = "google-key"
+            os.environ.pop("MAPBOX_ACCESS_TOKEN", None)
+            os.environ.pop("OSM_OVERPASS_URL", None)
+            self.assertEqual(MODULE.missing_source_settings(["google_places"]), [])
+            self.assertEqual(MODULE.missing_source_settings(["google_places", "osm"]), ["Mapbox token and OSM Overpass URL"])
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
     def test_queries_are_bounded_and_single_line(self):
         with self.assertRaises(ValueError):
             MODULE.safe_query("x")

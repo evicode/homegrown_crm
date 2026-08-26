@@ -108,6 +108,16 @@ function selectedSources(): array
     if (getenv('MAPBOX_ACCESS_TOKEN') && getenv('OSM_OVERPASS_URL')) $available[] = 'osm';
     return $available;
 }
+
+/** @param list<string> $sources */
+function assertConfiguredSources(array $sources): void
+{
+    $missing = [];
+    if (in_array('google_places', $sources, true) && !getenv('GOOGLE_PLACES_API_KEY')) $missing[] = 'Google Places key';
+    if (in_array('foursquare', $sources, true) && !getenv('FOURSQUARE_PLACES_API_KEY')) $missing[] = 'Foursquare key';
+    if (in_array('osm', $sources, true) && (!getenv('MAPBOX_ACCESS_TOKEN') || !getenv('OSM_OVERPASS_URL'))) $missing[] = 'Mapbox token and OSM Overpass URL';
+    if ($missing !== []) throw new RuntimeException('Add the required setting for every selected source: ' . implode('; ', $missing) . '.');
+}
 /** @param list<array<string,mixed>> $places @return list<array<string,mixed>> */
 function deduplicatePlaces(array $places):array{$unique=[];foreach($places as $place){$key=websiteDomain($place['website']??null);if($key==='')$key=normalizedText($place['name']??null).'|'.normalizedText($place['address']??null);if($key===''||$key==='|')$key=(string)$place['source'].'|'.(string)$place['source_id'];if(isset($unique[$key]))continue;$unique[$key]=$place;}return array_values($unique);}
 /** @return list<array<string,mixed>> */
@@ -293,6 +303,7 @@ function printLeadReview(array $result): void
         $fit = match ($candidate['fit'] ?? 'not_fit') { 'strong_fit' => 'STRONG MATCH', 'possible_fit' => 'POSSIBLE MATCH', default => 'NOT A MATCH' };
         echo sprintf('%02d. %s — %d importance points%s', $number + 1, $fit, (int) ($candidate['score'] ?? 0), !empty($candidate['already_in_crm']) ? ' — ALREADY IN CRM' : '') . "\n";
         echo '    ' . ($candidate['name'] ?? 'Unnamed company') . "\n";
+        echo '    Source: ' . ($candidate['source'] ?? 'unknown') . "\n";
         $details = array_filter([$candidate['category'] ?? null, $candidate['address'] ?? null, $candidate['website'] ?? null], 'is_string');
         if ($details !== []) echo '    ' . implode(' · ', $details) . "\n";
         echo '    Why: ' . implode('; ', $candidate['reasons'] ?? []) . "\n";
@@ -380,7 +391,8 @@ try {
         $campaignId = selectedCampaignId();
         $sources = selectedSources();
         if ($query === '') throw new InvalidArgumentException('Use find <ideal-customer search query>.');
-        if ($sources === []) throw new RuntimeException('Choose Google Places or Foursquare and provide its key before using lead discovery.');
+        if ($sources === []) throw new RuntimeException('Select at least one configured discovery source before using lead discovery.');
+        assertConfiguredSources($sources);
         $profile = toolData(callTool($endpoint, $token, $sessionId, $id++, 'get_lead_profile', []));
         if (!is_array($profile['required_any'] ?? null) || !is_array($profile['positive_keywords'] ?? null) || !is_array($profile['negative_keywords'] ?? null)) throw new RuntimeException('The MCP token needs lead_profiles:read and the CRM ideal customer profile must be available.');
         $places = [];
