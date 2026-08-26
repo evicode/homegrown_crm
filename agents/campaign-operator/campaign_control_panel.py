@@ -138,6 +138,8 @@ class CampaignControlPanel(tk.Tk):
         self.campaign_selection = tk.StringVar()
         self.campaign_ids: dict[str, int] = {}
         self.campaign_context: dict[str, dict[str, object]] = {}
+        self._dashboard_width = 0
+        self._scrollregion_update_pending = False
         self._build()
 
     def _build(self) -> None:
@@ -150,8 +152,8 @@ class CampaignControlPanel(tk.Tk):
         canvas.pack(side="left", fill="both", expand=True)
         frame = tk.Frame(canvas, padx=20, pady=18)
         frame_window = canvas.create_window((0, 0), window=frame, anchor="nw")
-        frame.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(frame_window, width=event.width))
+        frame.bind("<Configure>", lambda _event: self._schedule_scrollregion_update(canvas))
+        canvas.bind("<Configure>", lambda event: self._resize_dashboard_content(canvas, frame_window, event.width))
         canvas.bind_all("<MouseWheel>", lambda event: self._scroll_dashboard(canvas, event))
         tk.Label(frame, text="Find companies worth talking to", font=("Segoe UI", 20, "bold")).pack(anchor="w")
         tk.Label(frame, text="Start at step 1 if this is your first time. The dashboard will not create prospects or contact anyone without your confirmation.", wraplength=760, justify="left").pack(anchor="w", pady=(3, 14))
@@ -191,6 +193,27 @@ class CampaignControlPanel(tk.Tk):
         self.output = scrolledtext.ScrolledText(frame, height=14, wrap="word", state="disabled")
         self.output.pack(fill="both", expand=True, pady=(3, 0))
         self.append("Welcome. " + ("Start with step 2 to describe the companies you want to find." if setup_ready else "Start with step 1 to connect this dashboard to your CRM."))
+
+    def _resize_dashboard_content(self, canvas: tk.Canvas, frame_window: int, width: int) -> None:
+        """Avoid a full canvas relayout for repeated configure events while the window moves."""
+        width = max(1, width)
+        if width == self._dashboard_width:
+            return
+        self._dashboard_width = width
+        canvas.itemconfigure(frame_window, width=width)
+        self._schedule_scrollregion_update(canvas)
+
+    def _schedule_scrollregion_update(self, canvas: tk.Canvas) -> None:
+        if self._scrollregion_update_pending:
+            return
+        self._scrollregion_update_pending = True
+        self.after_idle(lambda: self._refresh_scrollregion(canvas))
+
+    def _refresh_scrollregion(self, canvas: tk.Canvas) -> None:
+        self._scrollregion_update_pending = False
+        bounds = canvas.bbox("all")
+        if bounds is not None:
+            canvas.configure(scrollregion=bounds)
 
     def _scroll_dashboard(self, canvas: tk.Canvas, event: tk.Event) -> None:
         if event.widget.winfo_toplevel() is not self:
