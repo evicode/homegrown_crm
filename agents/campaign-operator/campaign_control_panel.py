@@ -20,7 +20,7 @@ AGENT_DIR = Path(__file__).resolve().parent
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
-CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY")
+CONNECTION_KEYS = ("CAMPAIGN_OPERATOR_MCP_URL", "CAMPAIGN_OPERATOR_TOKEN", "GOOGLE_PLACES_API_KEY", "FOURSQUARE_PLACES_API_KEY", "CAMPAIGN_OPERATOR_SOURCES")
 LOCAL_SETTING_KEYS = CONNECTION_KEYS + ("CAMPAIGN_OPERATOR_CAMPAIGN_ID",)
 
 
@@ -68,7 +68,7 @@ def safe_query(query: str) -> str:
     return value
 
 
-def command_for(action: str, query: str = "", save: bool = False, campaign_id: int | None = None) -> list[str]:
+def command_for(action: str, query: str = "", save: bool = False, campaign_id: int | None = None, sources: list[str] | None = None) -> list[str]:
     base = [PHP, str(RUNNER)]
     if action in {"brief", "discover", "plan"}:
         command = base + [action]
@@ -79,6 +79,8 @@ def command_for(action: str, query: str = "", save: bool = False, campaign_id: i
         command = base + ["find", safe_query(query)]
         if campaign_id is not None:
             command.append(f"--campaign-id={campaign_id}")
+        if sources:
+            command.append("--sources=" + ",".join(sources))
         return command + (["--save"] if save else [])
     raise ValueError("Unsupported campaign action.")
 
@@ -112,6 +114,9 @@ class CampaignControlPanel(tk.Tk):
         self.endpoint = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_MCP_URL", "http://127.0.0.1/conversions/mcp"))
         self.token = tk.StringVar(value=os.environ.get("CAMPAIGN_OPERATOR_TOKEN", ""))
         self.places_key = tk.StringVar(value=os.environ.get("GOOGLE_PLACES_API_KEY", ""))
+        self.foursquare_key = tk.StringVar(value=os.environ.get("FOURSQUARE_PLACES_API_KEY", ""))
+        self.use_google = tk.BooleanVar(value="google_places" in os.environ.get("CAMPAIGN_OPERATOR_SOURCES", "google_places").split(","))
+        self.use_foursquare = tk.BooleanVar(value="foursquare" in os.environ.get("CAMPAIGN_OPERATOR_SOURCES", "").split(","))
         self.connection_status = tk.StringVar()
         self.campaign_selection = tk.StringVar()
         self.campaign_ids: dict[str, int] = {}
@@ -221,7 +226,12 @@ class CampaignControlPanel(tk.Tk):
         tk.Label(box, text="Google Places key", font=("Segoe UI", 9, "bold")).grid(row=5, column=0, sticky="w")
         tk.Entry(box, textvariable=self.places_key, show="*", width=68).grid(row=5, column=1, sticky="ew", pady=2)
         tk.Label(box, text="Needed only to search for companies. You can save the CRM connection without it.").grid(row=6, column=1, sticky="w", pady=(0, 7))
-        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=7, column=1, sticky="w")
+        tk.Label(box, text="Foursquare key", font=("Segoe UI", 9, "bold")).grid(row=7, column=0, sticky="w")
+        tk.Entry(box, textvariable=self.foursquare_key, show="*", width=68).grid(row=7, column=1, sticky="ew", pady=2)
+        sources = tk.Frame(box); sources.grid(row=8, column=1, sticky="w", pady=4)
+        tk.Checkbutton(sources, text="Google Places", variable=self.use_google).pack(side="left")
+        tk.Checkbutton(sources, text="Foursquare", variable=self.use_foursquare).pack(side="left", padx=10)
+        tk.Button(box, text="Save connection", command=self.save_connection, font=("Segoe UI", 9, "bold")).grid(row=9, column=1, sticky="w")
         box.columnconfigure(1, weight=1)
 
     def campaign_step(self, parent: tk.Widget, setup_ready: bool) -> None:
@@ -252,6 +262,8 @@ class CampaignControlPanel(tk.Tk):
         endpoint = self.endpoint.get().strip().rstrip("/")
         token = self.token.get().strip()
         places_key = self.places_key.get().strip()
+        foursquare_key = self.foursquare_key.get().strip()
+        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get())) if enabled]
         if not endpoint.endswith("/mcp"):
             messagebox.showerror("Campaign Operator", "The CRM address must end with /mcp.")
             return
@@ -259,11 +271,11 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showerror("Campaign Operator", "Enter the CRM token from CRM → Integrations.")
             return
         try:
-            save_local_environment({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key})
+            save_local_environment({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
         except (OSError, ValueError) as error:
             messagebox.showerror("Campaign Operator", f"Could not save the connection: {error}")
             return
-        os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key})
+        os.environ.update({"CAMPAIGN_OPERATOR_MCP_URL": endpoint, "CAMPAIGN_OPERATOR_TOKEN": token, "GOOGLE_PLACES_API_KEY": places_key, "FOURSQUARE_PLACES_API_KEY": foursquare_key, "CAMPAIGN_OPERATOR_SOURCES": ",".join(sources)})
         self.connection_status.set("Connection saved on this computer. You can continue to step 2.")
         self.run("campaigns")
         messagebox.showinfo("Campaign Operator", "Connection saved. Your campaigns are loading now; choose one in step 2.")
@@ -335,11 +347,12 @@ class CampaignControlPanel(tk.Tk):
         if missing:
             messagebox.showerror("Campaign Operator", "Copy .env.example to .env, fill in these values, then open this dashboard again:\n" + "\n".join(missing))
             return
-        if action == "find" and not os.environ.get("GOOGLE_PLACES_API_KEY"):
-            messagebox.showerror("Campaign Operator", "Add GOOGLE_PLACES_API_KEY to .env before searching for companies. Search suggestions and profile setup work without it.")
+        sources = [name for name, enabled in (("google_places", self.use_google.get()), ("foursquare", self.use_foursquare.get())) if enabled]
+        if action == "find" and not (("google_places" in sources and os.environ.get("GOOGLE_PLACES_API_KEY")) or ("foursquare" in sources and os.environ.get("FOURSQUARE_PLACES_API_KEY"))):
+            messagebox.showerror("Campaign Operator", "Select Google Places or Foursquare and add its key before searching for companies.")
             return
         try:
-            command = command_for(action, self.query.get(), save, self.selected_campaign_id())
+            command = command_for(action, self.query.get(), save, self.selected_campaign_id(), sources)
         except ValueError as error:
             messagebox.showerror("Campaign Operator", str(error))
             return

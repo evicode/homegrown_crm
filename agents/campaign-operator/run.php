@@ -86,6 +86,15 @@ function placeSearch(string $query, string $apiKey): array
     return $decoded;
 }
 
+/** @return list<array<string,mixed>> */
+function googleCandidates(string $query,string $key):array{$places=placeSearch($query,$key)['places']??[];return array_values(array_filter(array_map(static fn(array $p):array=>['source'=>'google_places','source_id'=>$p['id']??null,'name'=>$p['displayName']['text']??null,'website'=>$p['websiteUri']??null,'address'=>$p['formattedAddress']??null,'category'=>$p['primaryType']??null,'business_status'=>$p['businessStatus']??null],$places),static fn(array $p):bool=>is_string($p['name'])&&trim($p['name'])!==''));}
+/** @return list<array<string,mixed>> */
+function foursquareCandidates(string $query,string $key):array{$url='https://places-api.foursquare.com/places/search?'.http_build_query(['query'=>$query,'limit'=>20,'fields'=>'fsq_place_id,name,address,locality,region,postcode,website,fsq_category_labels']);$ctx=stream_context_create(['http'=>['header'=>"Accept: application/json\r\nAuthorization: Bearer {$key}\r\nX-Places-Api-Version: 2025-06-17",'ignore_errors'=>true,'timeout'=>20]]);$body=file_get_contents($url,false,$ctx);$data=is_string($body)?json_decode($body,true):null;if(!is_array($data)||isset($data['error']))throw new RuntimeException('Foursquare search failed.');return array_values(array_filter(array_map(static function(array $p):array{$address=implode(', ',array_filter([$p['address']??null,$p['locality']??null,$p['region']??null,$p['postcode']??null],'is_string'));return['source'=>'foursquare','source_id'=>$p['fsq_place_id']??null,'name'=>$p['name']??null,'website'=>$p['website']??null,'address'=>$address?:null,'category'=>is_array($p['fsq_category_labels']??null)?implode(', ',$p['fsq_category_labels']):null,'business_status'=>null];},$data['results']??[]),static fn(array $p):bool=>is_string($p['name'])&&trim($p['name'])!==''));}
+/** @return list<string> */
+function selectedSources():array{global $argv;foreach($argv as $arg)if(str_starts_with($arg,'--sources='))return array_values(array_intersect(['google_places','foursquare'],explode(',',substr($arg,10))));return array_keys(array_filter(['google_places'=>getenv('GOOGLE_PLACES_API_KEY')?:null,'foursquare'=>getenv('FOURSQUARE_PLACES_API_KEY')?:null]));}
+/** @param list<array<string,mixed>> $places @return list<array<string,mixed>> */
+function deduplicatePlaces(array $places):array{$unique=[];foreach($places as $place){$key=websiteDomain($place['website']??null);if($key==='')$key=normalizedText($place['name']??null).'|'.normalizedText($place['address']??null);if($key===''||$key==='|')$key=(string)$place['source'].'|'.(string)$place['source_id'];if(isset($unique[$key]))continue;$unique[$key]=$place;}return array_values($unique);}
+
 /** @return array<string,mixed> */
 function toolData(array $response): array
 {
@@ -293,30 +302,33 @@ try {
     if ($command === 'find') {
         $query = trim((string) ($argv[2] ?? ''));
         $campaignId = selectedCampaignId();
-        $placesKey = getenv('GOOGLE_PLACES_API_KEY') ?: '';
+        $sources = selectedSources();
         if ($query === '') throw new InvalidArgumentException('Use find <ideal-customer search query>.');
-        if ($placesKey === '') throw new RuntimeException('Set GOOGLE_PLACES_API_KEY before using lead discovery.');
+        if ($sources === []) throw new RuntimeException('Choose Google Places or Foursquare and provide its key before using lead discovery.');
         $profile = toolData(callTool($endpoint, $token, $sessionId, $id++, 'get_lead_profile', []));
         if (!is_array($profile['required_any'] ?? null) || !is_array($profile['positive_keywords'] ?? null) || !is_array($profile['negative_keywords'] ?? null)) throw new RuntimeException('The MCP token needs lead_profiles:read and the CRM ideal customer profile must be available.');
-        $places = placeSearch($query, $placesKey)['places'] ?? [];
+        $places = [];
+        if (in_array('google_places',$sources,true)) $places = array_merge($places,googleCandidates($query,(string)getenv('GOOGLE_PLACES_API_KEY')));
+        if (in_array('foursquare',$sources,true)) $places = array_merge($places,foursquareCandidates($query,(string)getenv('FOURSQUARE_PLACES_API_KEY')));
+        $places = deduplicatePlaces($places);
         $save = in_array('--save', $argv, true);
         $maxSaves = (int) (getenv('CAMPAIGN_OPERATOR_MAX_SAVED_CANDIDATES') ?: 10);
         $maxSaves = min(20, max(1, $maxSaves));
         $savedCount = 0;
         $candidates = [];
         foreach ($places as $place) {
-            $name = trim((string) ($place['displayName']['text'] ?? ''));
+            $name = trim((string) ($place['name'] ?? ''));
             if ($name === '') continue;
             $candidate = [
-                'source' => 'google_places', 'source_id' => $place['id'] ?? null, 'name' => $name,
-                'website' => $place['websiteUri'] ?? null, 'address' => $place['formattedAddress'] ?? null,
-                'category' => $place['primaryType'] ?? null, 'business_status' => $place['businessStatus'] ?? null,
+                'source' => $place['source'] ?? 'unknown', 'source_id' => $place['source_id'] ?? null, 'name' => $name,
+                'website' => $place['website'] ?? null, 'address' => $place['address'] ?? null,
+                'category' => $place['category'] ?? null, 'business_status' => $place['business_status'] ?? null,
             ];
             try {
                 $existing = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $name]));
                 $prospectArguments = ['query' => $name]; if ($campaignId !== null) $prospectArguments['campaign_id'] = $campaignId;
                 $prospects = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_prospects', $prospectArguments));
-                $domain = websiteDomain($place['websiteUri'] ?? null);
+                $domain = websiteDomain($place['website'] ?? null);
                 if ($domain !== '') {
                     $domainCompanies = toolData(callTool($endpoint, $token, $sessionId, $id++, 'search_companies', ['query' => $domain]));
                     $existing['items'] = array_merge($existing['items'] ?? [], $domainCompanies['items'] ?? []);
