@@ -163,7 +163,7 @@ class CampaignControlPanel(tk.Tk):
         self.step(frame, "4", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
         self.suggestions = tk.LabelFrame(frame, text="Suggested company searches", padx=12, pady=9, font=("Segoe UI", 10, "bold"))
         self.suggestions.pack(fill="x", pady=(0, 10))
-        self.suggestion_message = tk.StringVar(value="Click “Suggest company searches” in step 3. Your choices will appear here.")
+        self.suggestion_message = tk.StringVar(value="Click “Suggest company searches” in step 4. Your choices will appear here.")
         tk.Label(self.suggestions, textvariable=self.suggestion_message, wraplength=740, justify="left").pack(anchor="w")
 
         finder = tk.LabelFrame(frame, text="5. Search for potential companies", padx=12, pady=10, font=("Segoe UI", 10, "bold"))
@@ -200,11 +200,13 @@ class CampaignControlPanel(tk.Tk):
         if event.delta:
             canvas.yview_scroll(int(-event.delta / 120), "units")
 
-    def show_suggested_searches(self, queries: list[str]) -> None:
+    def show_suggested_searches(self, queries: list[str], explanation: str = "") -> None:
         for child in self.suggestions.winfo_children():
             child.destroy()
         if not queries:
-            tk.Label(self.suggestions, text="No suggestions were created. Add characteristics in the Ideal Customer Profile, then try again.", wraplength=740, justify="left").pack(anchor="w")
+            message = explanation or "Add at least one required or scored characteristic in the Ideal Customer Profile, then try again."
+            tk.Label(self.suggestions, text="No search ideas yet. " + message, wraplength=740, justify="left").pack(anchor="w")
+            self.suggestion_message.set("No search ideas yet.")
             return
         tk.Label(self.suggestions, text="Choose one to copy it into the search box. You can edit it before looking for companies.", wraplength=740, justify="left").pack(anchor="w", pady=(0, 6))
         for query in queries:
@@ -392,7 +394,7 @@ class CampaignControlPanel(tk.Tk):
 
     def _run_process(self, command: list[str], action: str) -> None:
         try:
-            result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False)
+            result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             output = (result.stdout + result.stderr).strip() or "Command completed without output."
             if action == "campaigns" and result.returncode == 0:
                 try:
@@ -403,7 +405,9 @@ class CampaignControlPanel(tk.Tk):
                     output += "\n\nCould not read the campaign list. Check the connection and try again."
             if action == "plan":
                 suggestions = re.findall(r"^\d+\. (.+)$", result.stdout, re.MULTILINE)
-                self.after(0, self.show_suggested_searches, suggestions)
+                plan_lines = [line.strip() for line in result.stdout.splitlines() if line.strip() and line.strip() != "SUGGESTED COMPANY SEARCHES"]
+                explanation = " ".join(line for line in plan_lines if not re.match(r"^\d+\. ", line))
+                self.after(0, self.show_suggested_searches, suggestions, explanation)
                 if suggestions:
                     self.after(0, self.query.set, suggestions[0])
                     output += "\n\nSuggested searches are now shown above step 4. The first is in the search box."
