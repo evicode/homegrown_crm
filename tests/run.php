@@ -79,6 +79,18 @@ $test('router returns 404 and 405 with Allow', static function () use ($assert):
     $assert($response->status === 405 && $response->headers['Allow'] === 'GET');
 });
 
+$test('request retains rewritten Bearer authorization headers', static function () use ($assert): void {
+    $server = $_SERVER; $get = $_GET; $post = $_POST; $files = $_FILES;
+    try {
+        $_SERVER = ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/mcp', 'REDIRECT_HTTP_AUTHORIZATION' => 'Bearer crm_test-token'];
+        $_GET = []; $_POST = []; $_FILES = [];
+        $request = Request::fromGlobals();
+        $assert(($request->headers['authorization'] ?? null) === 'Bearer crm_test-token');
+    } finally {
+        $_SERVER = $server; $_GET = $get; $_POST = $post; $_FILES = $files;
+    }
+});
+
 $test('application maps exceptions without exposing details', static function () use ($assert): void {
     $router = new Router();
     $router->add('GET', '/fail', static function (): Response { throw new RuntimeException('sensitive detail'); }, 'fail');

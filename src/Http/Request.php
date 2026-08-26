@@ -29,6 +29,18 @@ final class Request
                 $headers[$name] = $value;
             }
         }
+        if (!isset($headers['authorization'])) {
+            $authorization = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? null;
+            if (is_string($authorization) && $authorization !== '') $headers['authorization'] = $authorization;
+        }
+        if (!isset($headers['authorization']) && function_exists('getallheaders')) {
+            foreach (getallheaders() as $name => $value) {
+                if (strtolower((string) $name) === 'authorization' && is_string($value) && $value !== '') {
+                    $headers['authorization'] = $value;
+                    break;
+                }
+            }
+        }
 
         $rawBody = file_get_contents('php://input') ?: '';
         $body = $_POST;

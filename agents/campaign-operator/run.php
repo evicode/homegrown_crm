@@ -18,7 +18,8 @@ function requestMcp(string $endpoint, string $token, array $payload, ?string $se
 {
     $headers = [
         'Content-Type: application/json',
-        'Accept: application/json, text/event-stream',
+        // This fixed-command client parses one JSON-RPC response at a time; it does not implement SSE framing.
+        'Accept: application/json',
         'Authorization: Bearer ' . $token,
         'MCP-Protocol-Version: ' . PROTOCOL_VERSION,
     ];
@@ -37,6 +38,8 @@ function requestMcp(string $endpoint, string $token, array $payload, ?string $se
     foreach ($responseHeaders as $header) {
         if (stripos($header, 'Mcp-Session-Id:') === 0) $newSessionId = trim(substr($header, strlen('Mcp-Session-Id:')));
     }
+    // MCP notifications such as notifications/initialized intentionally have no response body.
+    if (trim($body) === '') return [[], $newSessionId ?? $sessionId];
     $decoded = json_decode($body, true);
     if (!is_array($decoded)) throw new RuntimeException('MCP returned a non-JSON response.');
     if (isset($decoded['error'])) throw new RuntimeException((string) ($decoded['error']['message'] ?? 'MCP request failed.'));

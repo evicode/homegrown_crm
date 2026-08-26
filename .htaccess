@@ -2,6 +2,9 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Preserve Bearer credentials when Apache rewrites MCP/API requests to index.php.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
     RewriteRule ^public(?:/|$) - [F,L,NC]
     RewriteRule ^(?:config|database|docs|src|templates|tests|var|vendor)(?:/|$) - [F,L,NC]
     RewriteRule ^(?:composer\.(?:json|lock)|\.env(?:\..*)?|.*\.(?:pem|key|p12|pfx))$ - [F,L,NC]
