@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -34,3 +35,19 @@ def profile_prompt(source: str) -> str:
     if not source:
         raise ValueError("Describe your company or choose a file first.")
     return """Turn this company description into an editable Ideal Customer Profile draft. Do not invent facts. Return JSON only with: description (string), required_any (array of strings), positive_keywords (object mapping characteristic to importance 1-20), negative_keywords (array), preferred_locations (array), minimum_score (integer), strong_fit_score (integer). Use concise, searchable business characteristics.\n\nSOURCE:\n""" + source
+
+
+def draft_with_codex(source: str) -> str:
+    prompt = profile_prompt(source)
+    with tempfile.NamedTemporaryFile(prefix="campaign-profile-draft-", suffix=".json", delete=False) as output:
+        output_path = Path(output.name)
+    try:
+        result = subprocess.run(["cmd.exe", "/d", "/c", "codex.cmd", "exec", "--skip-git-repo-check", "--output-last-message", str(output_path), prompt], text=True, capture_output=True, timeout=180, shell=False)
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or "ChatGPT could not create a draft.").strip())
+        draft = output_path.read_text(encoding="utf-8").strip()
+        if not draft:
+            raise RuntimeError("ChatGPT returned an empty draft.")
+        return draft
+    finally:
+        output_path.unlink(missing_ok=True)

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
-from profile_draft import extract_text, profile_prompt
+from profile_draft import draft_with_codex, extract_text
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
@@ -418,11 +418,19 @@ class CampaignControlPanel(tk.Tk):
         def draft() -> None:
             self.profile_source_text = source.get("1.0", "end").strip()
             try:
-                prompt = profile_prompt(self.profile_source_text)
+                if not self.profile_source_text:
+                    raise ValueError("Describe your company or choose a file first.")
             except ValueError as error:
                 messagebox.showwarning("Need a description", str(error), parent=window); return
-            self.clipboard_clear(); self.clipboard_append(prompt)
-            status.set("The structured drafting request is copied. Paste it into the Campaign Operator ChatGPT session, then paste its JSON-only answer into the box below.")
+            status.set("ChatGPT is building an editable draft…")
+            def create() -> None:
+                try:
+                    draft = draft_with_codex(self.profile_source_text)
+                    json.loads(draft)
+                    self.after(0, lambda: (draft_json.delete("1.0", "end"), draft_json.insert("1.0", draft), status.set("Draft ready. Review it, edit it if needed, then apply it.")))
+                except Exception as error:
+                    self.after(0, lambda: status.set("Could not create a draft: " + str(error)))
+            threading.Thread(target=create, daemon=True).start()
         def apply_draft() -> None:
             try:
                 payload = json.loads(draft_json.get("1.0", "end").strip())
@@ -438,7 +446,6 @@ class CampaignControlPanel(tk.Tk):
             threading.Thread(target=self._run_process, args=(command, "profile_apply"), daemon=True).start()
         tk.Button(actions, text="Import file", command=choose_file).pack(side="left")
         tk.Button(actions, text="Create ChatGPT draft", command=draft, font=("Segoe UI", 10, "bold")).pack(side="left", padx=8)
-        tk.Button(actions, text="Open ChatGPT agent", command=self.open_codex).pack(side="left")
         tk.Button(actions, text="Apply reviewed draft", command=apply_draft, font=("Segoe UI", 10, "bold")).pack(side="right")
 
     def save_find(self) -> None:
