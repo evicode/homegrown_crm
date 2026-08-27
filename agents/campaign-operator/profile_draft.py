@@ -5,6 +5,7 @@ import re
 import subprocess
 import tempfile
 import zipfile
+import json
 from pathlib import Path
 
 
@@ -37,6 +38,23 @@ def profile_prompt(source: str) -> str:
     return """Turn this company description into an editable Ideal Customer Profile draft. Do not invent facts. Return JSON only with: description (string), required_any (array of strings), positive_keywords (object mapping characteristic to importance 1-20), negative_keywords (array), preferred_locations (array), minimum_score (integer), strong_fit_score (integer). Use concise, searchable business characteristics.\n\nSOURCE:\n""" + source
 
 
+def validate_draft(raw: str) -> dict[str, object]:
+    try:
+        draft = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError("ChatGPT did not return valid JSON. Try again or edit the draft manually.") from error
+    if not isinstance(draft, dict):
+        raise ValueError("The profile draft must be a JSON object.")
+    lists = ("required_any", "negative_keywords", "preferred_locations")
+    for key in lists:
+        if key in draft and not (isinstance(draft[key], list) and all(isinstance(value, str) for value in draft[key])):
+            raise ValueError(f"{key} must be a list of text items.")
+    weights = draft.get("positive_keywords", {})
+    if not isinstance(weights, dict) or not all(isinstance(key, str) and isinstance(value, int) and 1 <= value <= 20 for key, value in weights.items()):
+        raise ValueError("positive_keywords must map each characteristic to an importance from 1 to 20.")
+    return draft
+
+
 def draft_with_codex(source: str) -> str:
     prompt = profile_prompt(source)
     with tempfile.NamedTemporaryFile(prefix="campaign-profile-draft-", suffix=".json", delete=False) as output:
@@ -48,6 +66,7 @@ def draft_with_codex(source: str) -> str:
         draft = output_path.read_text(encoding="utf-8").strip()
         if not draft:
             raise RuntimeError("ChatGPT returned an empty draft.")
+        validate_draft(draft)
         return draft
     finally:
         output_path.unlink(missing_ok=True)

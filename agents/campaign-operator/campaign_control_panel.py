@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
-from profile_draft import draft_with_codex, extract_text
+from profile_draft import draft_with_codex, extract_text, validate_draft
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
@@ -426,17 +426,15 @@ class CampaignControlPanel(tk.Tk):
             def create() -> None:
                 try:
                     draft = draft_with_codex(self.profile_source_text)
-                    json.loads(draft)
+                    validate_draft(draft)
                     self.after(0, lambda: (draft_json.delete("1.0", "end"), draft_json.insert("1.0", draft), status.set("Draft ready. Review it, edit it if needed, then apply it.")))
                 except Exception as error:
                     self.after(0, lambda: status.set("Could not create a draft: " + str(error)))
             threading.Thread(target=create, daemon=True).start()
         def apply_draft() -> None:
             try:
-                payload = json.loads(draft_json.get("1.0", "end").strip())
-                if not isinstance(payload, dict):
-                    raise ValueError("The draft must be a JSON object.")
-            except (json.JSONDecodeError, ValueError) as error:
+                payload = validate_draft(draft_json.get("1.0", "end").strip())
+            except ValueError as error:
                 messagebox.showerror("Invalid draft", str(error), parent=window)
                 return
             if not messagebox.askyesno("Apply profile draft", "Replace the Ideal Customer Profile with this reviewed draft?", parent=window):
