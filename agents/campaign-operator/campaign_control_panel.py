@@ -401,6 +401,9 @@ class CampaignControlPanel(tk.Tk):
         source.insert("1.0", self.profile_source_text)
         status = tk.StringVar(value="")
         tk.Label(window, textvariable=status, wraplength=710, justify="left").pack(anchor="w", padx=16)
+        tk.Label(window, text="Reviewed JSON draft", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(10, 0))
+        draft_json = scrolledtext.ScrolledText(window, height=9, wrap="word")
+        draft_json.pack(fill="both", expand=True, padx=16, pady=(3, 8))
         actions = tk.Frame(window); actions.pack(fill="x", padx=16, pady=12)
         def choose_file() -> None:
             filename = filedialog.askopenfilename(parent=window, filetypes=[("Supported files", "*.txt *.pdf *.doc *.docx"), ("All files", "*.*")])
@@ -419,10 +422,24 @@ class CampaignControlPanel(tk.Tk):
             except ValueError as error:
                 messagebox.showwarning("Need a description", str(error), parent=window); return
             self.clipboard_clear(); self.clipboard_append(prompt)
-            status.set("The structured drafting request is copied. Open the Campaign Operator ChatGPT session, paste it, then review the returned JSON before applying it.")
+            status.set("The structured drafting request is copied. Paste it into the Campaign Operator ChatGPT session, then paste its JSON-only answer into the box below.")
+        def apply_draft() -> None:
+            try:
+                payload = json.loads(draft_json.get("1.0", "end").strip())
+                if not isinstance(payload, dict):
+                    raise ValueError("The draft must be a JSON object.")
+            except (json.JSONDecodeError, ValueError) as error:
+                messagebox.showerror("Invalid draft", str(error), parent=window)
+                return
+            if not messagebox.askyesno("Apply profile draft", "Replace the Ideal Customer Profile with this reviewed draft?", parent=window):
+                return
+            command = [PHP, str(RUNNER), "apply-profile", json.dumps(payload), "--approve-write"]
+            status.set("Applying the reviewed draft to the CRM…")
+            threading.Thread(target=self._run_process, args=(command, "profile_apply"), daemon=True).start()
         tk.Button(actions, text="Import file", command=choose_file).pack(side="left")
         tk.Button(actions, text="Create ChatGPT draft", command=draft, font=("Segoe UI", 10, "bold")).pack(side="left", padx=8)
         tk.Button(actions, text="Open ChatGPT agent", command=self.open_codex).pack(side="left")
+        tk.Button(actions, text="Apply reviewed draft", command=apply_draft, font=("Segoe UI", 10, "bold")).pack(side="right")
 
     def save_find(self) -> None:
         if not self.allow_save.get():

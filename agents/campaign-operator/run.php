@@ -389,6 +389,20 @@ try {
         else printSearchPlan($queries);
         exit(0);
     }
+    if ($command === 'apply-profile') {
+        if (!isset($argv[2])) throw new InvalidArgumentException('Use apply-profile <reviewed JSON draft> --approve-write.');
+        if (!in_array('--approve-write', $argv, true)) throw new RuntimeException('Refusing profile update. Review the draft and add --approve-write.');
+        $draft = json_decode($argv[2], true, flags: JSON_THROW_ON_ERROR);
+        if (!is_array($draft)) throw new InvalidArgumentException('The reviewed profile draft must be a JSON object.');
+        $current = toolData(callTool($endpoint, $token, $sessionId, $id++, 'get_lead_profile', []));
+        if (!isset($current['version'])) throw new RuntimeException('Could not load the current ideal customer profile.');
+        $payload = ['idempotency_key' => bin2hex(random_bytes(16)), 'version' => (int) $current['version']];
+        foreach (['description', 'required_any', 'positive_keywords', 'negative_keywords', 'preferred_locations', 'minimum_score', 'strong_fit_score'] as $field) {
+            $payload[$field] = $draft[$field] ?? $current[$field] ?? null;
+        }
+        echo json_encode(toolData(callTool($endpoint, $token, $sessionId, $id++, 'update_lead_profile', $payload)), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        exit(0);
+    }
     if ($command === 'find') {
         $query = trim((string) ($argv[2] ?? ''));
         $campaignId = selectedCampaignId();
@@ -456,7 +470,7 @@ try {
     $tool = $argv[2];
     $arguments = json_decode($argv[3], true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($arguments)) throw new InvalidArgumentException('Tool arguments must be a JSON object.');
-    $writes = ['create_company', 'create_contact', 'create_prospect', 'transition_prospect', 'record_interaction', 'schedule_follow_up', 'create_opportunity'];
+    $writes = ['create_company', 'create_contact', 'create_prospect', 'transition_prospect', 'record_interaction', 'schedule_follow_up', 'create_opportunity', 'update_lead_profile'];
     if (in_array($tool, $writes, true) && !in_array('--approve-write', $argv, true)) throw new RuntimeException('Refusing write. Review the action and add --approve-write to run it.');
     echo json_encode(callTool($endpoint, $token, $sessionId, $id, $tool, $arguments), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } catch (Throwable $exception) {
