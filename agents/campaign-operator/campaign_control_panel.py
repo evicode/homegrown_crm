@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
-from profile_draft import draft_with_codex, extract_text, validate_draft
+from profile_draft import display_draft, draft_with_codex, extract_text, validate_draft
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
@@ -429,13 +429,16 @@ class CampaignControlPanel(tk.Tk):
                 try:
                     draft = draft_with_codex(self.profile_source_text)
                     validate_draft(draft)
-                    self.after(0, lambda: (draft_json.delete("1.0", "end"), draft_json.insert("1.0", draft), status.set("Draft ready. Review it, edit it if needed, then apply it.")))
+                    reviewed = display_draft(validate_draft(draft)) + "\n\nRAW JSON (used when applying)\n" + draft
+                    self.after(0, lambda: (draft_json.delete("1.0", "end"), draft_json.insert("1.0", reviewed), status.set("Draft ready. Review it, edit it if needed, then apply it.")))
                 except Exception as error:
                     self.after(0, lambda: status.set("Could not create a draft: " + str(error)))
             threading.Thread(target=create, daemon=True).start()
         def apply_draft() -> None:
             try:
-                payload = validate_draft(draft_json.get("1.0", "end").strip())
+                raw = draft_json.get("1.0", "end").strip()
+                marker = "RAW JSON (used when applying)"
+                payload = validate_draft(raw.split(marker, 1)[-1].strip())
             except ValueError as error:
                 messagebox.showerror("Invalid draft", str(error), parent=window)
                 return

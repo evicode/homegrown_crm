@@ -69,6 +69,19 @@ def validate_draft(raw: str) -> dict[str, object]:
     return draft
 
 
+def display_draft(draft: dict[str, object]) -> str:
+    """Render a draft as plain editable profile fields for the dashboard review pane."""
+    rows = ["DESCRIPTION", str(draft.get("description", "")), "", "MUST-HAVE TRAITS"]
+    rows.extend(str(value) for value in draft.get("required_any", []))
+    rows.append("\nCHARACTERISTICS (importance)")
+    rows.extend(f"{term} | {weight}" for term, weight in dict(draft.get("positive_keywords", {})).items())
+    rows.append("\nEXCLUSIONS")
+    rows.extend(str(value) for value in draft.get("negative_keywords", []))
+    rows.append("\nPREFERRED LOCATIONS")
+    rows.extend(str(value) for value in draft.get("preferred_locations", []))
+    return "\n".join(rows)
+
+
 def draft_with_codex(source: str) -> str:
     prompt = profile_prompt(source)
     with tempfile.NamedTemporaryFile(prefix="campaign-profile-draft-", suffix=".json", delete=False) as output:
