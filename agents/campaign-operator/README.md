@@ -8,6 +8,12 @@ Double-click [open-campaign-dashboard.cmd](open-campaign-dashboard.cmd). It open
 
 The dashboard walks users through: connect it once, describe the companies they want, generate/edit a search, find companies, then optionally add reviewed candidates to the CRM queue. It never creates prospects or sends outreach.
 
+## Build an ideal customer profile from your company description
+
+Choose **Build profile draft** in the dashboard. Paste a description of your company and who it helps, or import a `.txt`, `.pdf`, `.doc`, or `.docx` file. The local dashboard extracts the text, asks the signed-in Codex/ChatGPT agent for a structured draft, and puts that draft in an editable review box. Nothing changes in the CRM until you choose **Apply reviewed draft** and confirm it.
+
+Applying a draft needs a CRM integration token with both `lead_profiles:read` and `lead_profiles:write`. The write scope is intentionally separate: create a new scoped token in **CRM → Integrations** if your existing token cannot apply the draft.
+
 ## Optional interactive ChatGPT terminal session
 
 Double-click [launch-campaign-agent.cmd](launch-campaign-agent.cmd) after signing in to the Codex CLI with your ChatGPT account. It starts an interactive Campaign Operator session in the terminal. The subscription model handles the conversation and reasoning; `run.php` makes the MCP calls to this CRM. No OpenAI API key is used by this launcher.
