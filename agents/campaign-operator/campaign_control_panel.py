@@ -395,13 +395,15 @@ class CampaignControlPanel(tk.Tk):
         window.title("Build ideal customer profile")
         window.geometry("760x600")
         tk.Label(window, text="Describe what your company does and who it helps", font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=16, pady=(16, 4))
-        tk.Label(window, text="Paste text below or import a PDF, Word, or text file. The source stays on this computer until you explicitly create a draft.", wraplength=710, justify="left").pack(anchor="w", padx=16)
+        tk.Label(window, text="Paste text below or import a PDF, Word, or text file. It stays on this computer until you choose Create ChatGPT draft.", wraplength=710, justify="left").pack(anchor="w", padx=16)
+        tk.Label(window, text="Privacy note: creating a draft sends this text to your signed-in ChatGPT/Codex account. Do not include passwords, tokens, or confidential material you do not want processed there.", fg="#8a4b00", wraplength=710, justify="left").pack(anchor="w", padx=16, pady=(6, 0))
         source = scrolledtext.ScrolledText(window, height=16, wrap="word")
         source.pack(fill="both", expand=True, padx=16, pady=12)
         source.insert("1.0", self.profile_source_text)
         status = tk.StringVar(value="")
         tk.Label(window, textvariable=status, wraplength=710, justify="left").pack(anchor="w", padx=16)
-        tk.Label(window, text="Reviewed JSON draft", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(10, 0))
+        tk.Label(window, text="Reviewed profile draft", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16, pady=(10, 0))
+        tk.Label(window, text="Review and edit the draft before applying it. Applying replaces the profile fields included in the draft; omitted fields stay unchanged.", wraplength=710, justify="left").pack(anchor="w", padx=16)
         draft_json = scrolledtext.ScrolledText(window, height=9, wrap="word")
         draft_json.pack(fill="both", expand=True, padx=16, pady=(3, 8))
         actions = tk.Frame(window); actions.pack(fill="x", padx=16, pady=12)
@@ -437,7 +439,18 @@ class CampaignControlPanel(tk.Tk):
             except ValueError as error:
                 messagebox.showerror("Invalid draft", str(error), parent=window)
                 return
-            if not messagebox.askyesno("Apply profile draft", "Replace the Ideal Customer Profile with this reviewed draft?", parent=window):
+            summary = [
+                "Apply this reviewed profile draft?",
+                "",
+                "Description: " + str(payload.get("description", "(unchanged)"))[:180],
+                "Must-have traits: " + str(len(payload.get("required_any", []))),
+                "Characteristics: " + str(len(payload.get("positive_keywords", {}))),
+                "Exclusions: " + str(len(payload.get("negative_keywords", []))),
+                "Locations: " + str(len(payload.get("preferred_locations", []))),
+                "",
+                "This updates the CRM profile. It does not contact anyone or create prospects.",
+            ]
+            if not messagebox.askyesno("Review profile changes", "\n".join(summary), parent=window):
                 return
             command = [PHP, str(RUNNER), "apply-profile", json.dumps(payload), "--approve-write"]
             status.set("Applying the reviewed draft to the CRM…")

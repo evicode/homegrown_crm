@@ -9,8 +9,13 @@ import zipfile
 import json
 from pathlib import Path
 
+MAX_SOURCE_BYTES = 2_000_000
+MAX_SOURCE_CHARACTERS = 40_000
+
 
 def extract_text(path: Path) -> str:
+    if not path.is_file() or path.stat().st_size < 1 or path.stat().st_size > MAX_SOURCE_BYTES:
+        raise ValueError("Choose a readable file smaller than 2 MB.")
     suffix = path.suffix.lower()
     if suffix == ".txt":
         for encoding in ("utf-8-sig", "utf-16", "cp1252"):
@@ -41,7 +46,7 @@ def extract_text(path: Path) -> str:
 
 
 def profile_prompt(source: str) -> str:
-    source = source.strip()[:40000]
+    source = source.strip()[:MAX_SOURCE_CHARACTERS]
     if not source:
         raise ValueError("Describe your company or choose a file first.")
     return """Turn this company description into an editable Ideal Customer Profile draft. Do not invent facts. Return JSON only with: description (string), required_any (array of strings), positive_keywords (object mapping characteristic to importance 1-20), negative_keywords (array), preferred_locations (array), minimum_score (integer), strong_fit_score (integer). Use concise, searchable business characteristics.\n\nSOURCE:\n""" + source
