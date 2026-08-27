@@ -400,7 +400,13 @@ try {
         foreach (['description', 'required_any', 'positive_keywords', 'negative_keywords', 'preferred_locations', 'minimum_score', 'strong_fit_score'] as $field) {
             $payload[$field] = $draft[$field] ?? $current[$field] ?? null;
         }
-        echo json_encode(toolData(callTool($endpoint, $token, $sessionId, $id++, 'update_lead_profile', $payload)), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        try {
+            $updated = toolData(callTool($endpoint, $token, $sessionId, $id++, 'update_lead_profile', $payload));
+        } catch (RuntimeException $exception) {
+            if (str_contains($exception->getMessage(), 'Tool not found')) throw new RuntimeException('This CRM token needs the lead_profiles:write scope. Create a new integration token with that scope, save it in the dashboard, then try again.');
+            throw $exception;
+        }
+        echo json_encode($updated, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit(0);
     }
     if ($command === 'find') {
