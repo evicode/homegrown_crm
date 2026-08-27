@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -22,8 +23,16 @@ def extract_text(path: Path) -> str:
             xml = document.read("word/document.xml").decode("utf-8", "replace")
         return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", xml)).strip()
     if suffix == ".pdf":
-        from PyPDF2 import PdfReader
-        return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages).strip()
+        try:
+            from PyPDF2 import PdfReader
+            return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages).strip()
+        except ImportError:
+            command = shutil.which("pdftotext")
+            if command:
+                result = subprocess.run([command, str(path), "-"], text=True, capture_output=True, timeout=30, shell=False)
+                if result.returncode == 0:
+                    return result.stdout.strip()
+            raise ValueError("PDF support needs PyPDF2 or pdftotext installed on this computer.")
     if suffix == ".doc":
         result = subprocess.run(["antiword", str(path)], text=True, capture_output=True, timeout=30, shell=False)
         if result.returncode == 0:
