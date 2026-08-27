@@ -8,15 +8,19 @@ import json
 import os
 import re
 import subprocess
+import sys
 import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, scrolledtext
+from tkinter import filedialog, messagebox, scrolledtext
 from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_DIR = Path(__file__).resolve().parent
+if str(AGENT_DIR) not in sys.path:
+    sys.path.insert(0, str(AGENT_DIR))
+from profile_draft import extract_text, profile_prompt
 RUNNER = AGENT_DIR / "run.php"
 LAUNCHER = AGENT_DIR / "launch-campaign-agent.cmd"
 ENV_FILE = AGENT_DIR / ".env"
@@ -138,6 +142,7 @@ class CampaignControlPanel(tk.Tk):
         self.campaign_selection = tk.StringVar()
         self.campaign_ids: dict[str, int] = {}
         self.campaign_context: dict[str, dict[str, object]] = {}
+        self.profile_source_text = ""
         self._dashboard_width = 0
         self._scrollregion_update_pending = False
         self._build()
@@ -161,7 +166,7 @@ class CampaignControlPanel(tk.Tk):
         setup_ready = not required_environment()
         self.connection_step(frame, setup_ready)
         self.campaign_step(frame, setup_ready)
-        self.step(frame, "3", "Describe the companies you want", "Choose the characteristics, importance, locations, and exclusions that define a good fit. This is where the agent gets its instructions.", "Open Ideal Customer Profile", self.open_ideal_customer_profile)
+        self.step(frame, "3", "Build your ideal customer profile", "Describe your company or import a PDF, Word, or text file. The agent will turn it into an editable profile draft.", "Build profile draft", self.open_profile_assistant)
         self.step(frame, "4", "Get search ideas", "The dashboard turns your profile into suggested company searches and puts the first one below for you to edit.", "Suggest company searches", lambda: self.run("plan"))
         self.suggestions = tk.LabelFrame(frame, text="Suggested company searches", padx=12, pady=9, font=("Segoe UI", 10, "bold"))
         self.suggestions.pack(fill="x", pady=(0, 10))
@@ -384,6 +389,40 @@ class CampaignControlPanel(tk.Tk):
             messagebox.showwarning("Campaign Operator", "Set the CRM address in .env first, then reopen this dashboard.")
             return
         webbrowser.open(url)
+
+    def open_profile_assistant(self) -> None:
+        window = tk.Toplevel(self)
+        window.title("Build ideal customer profile")
+        window.geometry("760x600")
+        tk.Label(window, text="Describe what your company does and who it helps", font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=16, pady=(16, 4))
+        tk.Label(window, text="Paste text below or import a PDF, Word, or text file. The source stays on this computer until you explicitly create a draft.", wraplength=710, justify="left").pack(anchor="w", padx=16)
+        source = scrolledtext.ScrolledText(window, height=16, wrap="word")
+        source.pack(fill="both", expand=True, padx=16, pady=12)
+        source.insert("1.0", self.profile_source_text)
+        status = tk.StringVar(value="")
+        tk.Label(window, textvariable=status, wraplength=710, justify="left").pack(anchor="w", padx=16)
+        actions = tk.Frame(window); actions.pack(fill="x", padx=16, pady=12)
+        def choose_file() -> None:
+            filename = filedialog.askopenfilename(parent=window, filetypes=[("Supported files", "*.txt *.pdf *.doc *.docx"), ("All files", "*.*")])
+            if not filename:
+                return
+            try:
+                text = extract_text(Path(filename))
+            except Exception as error:
+                messagebox.showerror("Could not read file", str(error), parent=window)
+                return
+            source.delete("1.0", "end"); source.insert("1.0", text); status.set(f"Imported {Path(filename).name}. Review or edit the text before drafting.")
+        def draft() -> None:
+            self.profile_source_text = source.get("1.0", "end").strip()
+            try:
+                prompt = profile_prompt(self.profile_source_text)
+            except ValueError as error:
+                messagebox.showwarning("Need a description", str(error), parent=window); return
+            self.clipboard_clear(); self.clipboard_append(prompt)
+            status.set("The structured drafting request is copied. Open the Campaign Operator ChatGPT session, paste it, then review the returned JSON before applying it.")
+        tk.Button(actions, text="Import file", command=choose_file).pack(side="left")
+        tk.Button(actions, text="Create ChatGPT draft", command=draft, font=("Segoe UI", 10, "bold")).pack(side="left", padx=8)
+        tk.Button(actions, text="Open ChatGPT agent", command=self.open_codex).pack(side="left")
 
     def save_find(self) -> None:
         if not self.allow_save.get():

@@ -20,7 +20,7 @@ return [
         'follow_ups:read' => 'Read follow-ups', 'follow_ups:write' => 'Schedule and complete follow-ups',
         'opportunities:read' => 'Read opportunities', 'opportunities:write' => 'Create and update opportunities',
         'lead_candidates:write' => 'Submit researched lead candidates for owner review',
-        'lead_profiles:read' => 'Read the ideal customer profile for lead qualification',
+        'lead_profiles:read' => 'Read the ideal customer profile for lead qualification', 'lead_profiles:write' => 'Update the ideal customer profile after owner review',
         'reports:read' => 'Read campaign reports', 'data:import' => 'Commit imports', 'data:export' => 'Export data',
     ],
     'capabilities' => [
@@ -58,6 +58,7 @@ return [
         'opportunity.transition' => ['scopes' => ['opportunities:write'], 'mutation' => true, 'rate' => 'write'],
         'lead_candidate.propose' => ['scopes' => ['lead_candidates:write'], 'mutation' => true, 'rate' => 'write'],
         'lead_profile.get' => ['scopes' => ['lead_profiles:read'], 'mutation' => false, 'rate' => 'read'],
+        'lead_profile.update' => ['scopes' => ['lead_profiles:write'], 'mutation' => true, 'rate' => 'write'],
         'data.export' => ['scopes' => ['data:export'], 'mutation' => false, 'rate' => 'export'],
         'data.import_commit' => ['scopes' => ['data:import'], 'mutation' => true, 'rate' => 'high'],
     ],
