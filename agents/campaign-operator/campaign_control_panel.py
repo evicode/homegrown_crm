@@ -441,7 +441,20 @@ class CampaignControlPanel(tk.Tk):
                 return
             command = [PHP, str(RUNNER), "apply-profile", json.dumps(payload), "--approve-write"]
             status.set("Applying the reviewed draft to the CRM…")
-            threading.Thread(target=self._run_process, args=(command, "profile_apply"), daemon=True).start()
+            def apply() -> None:
+                try:
+                    result = subprocess.run(command, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True, timeout=120, shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                    output = (result.stdout + result.stderr).strip() or "The CRM returned no confirmation."
+                    self.after(0, self.append, output)
+                    if result.returncode == 0:
+                        self.after(0, lambda: status.set("Profile updated successfully. Generate search ideas when you are ready."))
+                    else:
+                        self.after(0, lambda: status.set("Profile was not changed: " + output))
+                except subprocess.TimeoutExpired:
+                    self.after(0, lambda: status.set("Profile update stopped after the 120-second safety timeout."))
+                except OSError as error:
+                    self.after(0, lambda: status.set("Could not apply the profile: " + str(error)))
+            threading.Thread(target=apply, daemon=True).start()
         tk.Button(actions, text="Import file", command=choose_file).pack(side="left")
         tk.Button(actions, text="Create ChatGPT draft", command=draft, font=("Segoe UI", 10, "bold")).pack(side="left", padx=8)
         tk.Button(actions, text="Apply reviewed draft", command=apply_draft, font=("Segoe UI", 10, "bold")).pack(side="right")
